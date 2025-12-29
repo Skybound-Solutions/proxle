@@ -33,7 +33,8 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'], // We'll add Inter from Google Fonts
+        sans: ['Inter', 'sans-serif'],
+        display: ['Outfit', 'sans-serif'],
       }
     },
   },

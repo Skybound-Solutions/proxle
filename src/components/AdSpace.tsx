@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface AdSpaceProps {
     type?: 'banner' | 'coffee';
@@ -6,20 +7,34 @@ interface AdSpaceProps {
 }
 
 const AdSpace: React.FC<AdSpaceProps> = ({ type = 'coffee', variant = 'default' }) => {
-    const [adText, setAdText] = React.useState("Support");
+    const [index, setIndex] = React.useState(0);
+
+    const phrases = [
+        "Support",
+        "No Ads?",
+        "Pay Bills",
+        "Server Cost",
+        "Fuel Code",
+        "Buy Coffee",
+        "Help Out",
+        "Keep Going",
+        "Be a Hero",
+        "Dev Fuel",
+        "Send Love",
+        "Good Karma",
+        "Chip In",
+        "Power AI"
+    ];
 
     React.useEffect(() => {
         if (variant !== 'header' || type !== 'coffee') return;
 
-        const phrases = ["Support", "No Ads?", "Pay Bills", "Server Cost"];
-        let i = 0;
         const interval = setInterval(() => {
-            i = (i + 1) % phrases.length;
-            setAdText(phrases[i]);
-        }, 3000);
+            setIndex((prev) => (prev + 1) % phrases.length);
+        }, 60000); // Every 60 seconds
 
         return () => clearInterval(interval);
-    }, [variant, type]);
+    }, [variant, type, phrases.length]);
 
     if (variant === 'header') {
         return (
@@ -29,13 +44,24 @@ const AdSpace: React.FC<AdSpaceProps> = ({ type = 'coffee', variant = 'default' 
                         href="https://ko-fi.com/skyboundmi"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all active:scale-95 group overflow-hidden min-w-[100px]"
+                        className="flex items-center gap-3 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all active:scale-95 group overflow-hidden w-[140px] justify-start relative"
                     >
-                        <span className="text-lg">☕</span>
-                        <div className="flex flex-col h-[15px] overflow-hidden justify-center relative w-full">
-                            <span className="text-[10px] font-bold text-white/70 group-hover:text-white uppercase tracking-wider whitespace-nowrap animate-slide-up-fade">
-                                {adText}
-                            </span>
+                        <span className="text-lg shrink-0 z-10">☕</span>
+
+                        {/* Fixed height container for text */}
+                        <div className="h-[20px] relative flex-1 overflow-hidden flex items-center">
+                            <AnimatePresence mode="wait">
+                                <motion.span
+                                    key={index}
+                                    initial={{ opacity: 0, y: 5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -5 }}
+                                    transition={{ duration: 0.5 }}
+                                    className="text-[10px] font-bold text-white/70 group-hover:text-white uppercase tracking-wider whitespace-nowrap absolute left-0"
+                                >
+                                    {phrases[index]}
+                                </motion.span>
+                            </AnimatePresence>
                         </div>
                     </a>
                 ) : (

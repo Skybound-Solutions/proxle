@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
-import { RefreshCw, Info, Share2, Copy, CheckCircle } from 'lucide-react';
+import { Info, Share2, Copy, CheckCircle, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -27,6 +27,38 @@ function App() {
   const [showInfo, setShowInfo] = useState(false);
   const [showVictory, setShowVictory] = useState(false);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle');
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    // Check if iOS
+    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    setIsIOS(isIOSDevice);
+
+    // Initial check for standalone mode
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    if (isStandalone) return; // Don't show install if already installed
+
+    const handler = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+    }
+  };
 
 
 
@@ -46,8 +78,12 @@ function App() {
     setIsLoading(true);
 
     try {
+      // Collect all previous hints to ensure uniqueness
+      const previousHints = guesses.flatMap(g => g.simWords);
+
       const result = await httpsCallable(functions, 'evaluateGuess')({
-        guessWord: input.toUpperCase() // Only send guess, target is hidden on server
+        guessWord: input.toUpperCase(),
+        previousHints
       });
 
       console.log("AI Result:", result);
@@ -270,19 +306,17 @@ function App() {
 
       {/* Header */}
       <header className="w-full max-w-md p-4 flex items-center justify-between z-10 glass-panel mb-6 mt-4 rounded-2xl mx-4">
-        <h1 className="text-xl font-black tracking-tighter bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500 bg-clip-text text-transparent shrink-0">
-          PROXLE
-        </h1>
+        <div className="relative shrink-0">
+          <h1 className="text-3xl font-black tracking-wide font-display bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]">
+            PROXLE
+          </h1>
+          <span className="absolute -right-2.5 top-0 text-[10px] font-medium text-blue-400/80">™</span>
+        </div>
 
         <AdSpace type="coffee" variant="header" />
 
         <div className="flex gap-2 shrink-0">
           <button className="p-2 hover:bg-white/10 rounded-full transition-colors" onClick={() => setShowInfo(true)}><Info size={20} /></button>
-          <button className="p-2 hover:bg-white/10 rounded-full transition-colors" onClick={() => {
-            setGuesses([]);
-            setShowVictory(false);
-            setShareStatus('idle');
-          }}><RefreshCw size={20} /></button>
         </div>
       </header>
 
@@ -316,49 +350,85 @@ function App() {
               </div>
 
               <div className="space-y-4 text-sm text-white/80">
+                {/* Install App Section - Only show if promotable or iOS */}
+                {(installPrompt || isIOS) && (
+                  <div className="mb-6 p-4 bg-gradient-to-br from-primary/10 to-blue-500/10 border border-primary/20 rounded-xl">
+                    <h3 className="text-white font-bold text-base mb-2 flex items-center gap-2">
+                      <Download size={18} className="text-primary" />
+                      Install App
+                    </h3>
+
+                    {installPrompt ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-white/70">
+                          Install Proxle for a fullscreen, native app experience!
+                        </p>
+                        <button
+                          onClick={handleInstallClick}
+                          className="w-full py-2 bg-primary text-primary-foreground font-bold rounded-lg text-xs shadow-lg shadow-primary/20 active:scale-95 transition-all"
+                        >
+                          Add to Home Screen
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-white/70 space-y-2">
+                        <p>To install on iOS:</p>
+                        <ol className="list-decimal list-inside space-y-1 ml-1 opacity-80">
+                          <li>Tap the <Share2 size={12} className="inline mx-1" /> Share button below</li>
+                          <li>Scroll down and select <span className="text-white font-semibold">"Add to Home Screen"</span></li>
+                        </ol>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <p className="text-base">
-                  <strong className="text-white">Proxle</strong> is a hybrid word-guessing game that combines{' '}
-                  <span className="text-primary font-semibold">semantic discovery</span> with{' '}
-                  <span className="text-green-400 font-semibold">orthographic feedback</span>.
+                  <strong className="text-white">Proxle</strong> is a twist on the classic word game. The secret word can be <strong className="text-white">3 to 5 letters long</strong>.
+                </p>
+                <p className="text-sm text-white/80">
+                  Instead of just spelling, you get clues about the <span className="text-primary font-bold">meaning</span> of the word too!
                 </p>
 
                 <div className="space-y-2">
-                  <h3 className="text-white font-bold text-base">🎯 Objective</h3>
-                  <p>Guess the hidden word (3-5 letters) using both meaning-based clues and letter position hints.</p>
+                  <h3 className="text-white font-bold text-base">🎯 How it Works</h3>
+                  <p>Guess a word to get two types of feedback:</p>
+                  <ul className="list-disc list-inside space-y-1 ml-1 opacity-90">
+                    <li><strong className="text-green-400">Spelling:</strong> Typical green/yellow colors for letter positions.</li>
+                    <li><strong className="text-primary">Meaning:</strong> A score (0-100%) showing how close your word's meaning is to the answer.</li>
+                  </ul>
                 </div>
 
                 <div className="space-y-2">
-                  <h3 className="text-white font-bold text-base">🔤 Letter Colors</h3>
+                  <h3 className="text-white font-bold text-base">🔤 Spelling Hints</h3>
                   <div className="space-y-2">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 bg-green-500 border-green-400 border-2 rounded-lg flex items-center justify-center font-bold shadow-[0_0_15px_rgba(34,197,94,0.3)]">
                         L
                       </div>
-                      <span><strong className="text-green-400">Green:</strong> Correct letter in the correct position</span>
+                      <span><strong className="text-green-400">Green:</strong> Right letter, right spot</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 bg-yellow-500 border-yellow-400 border-2 rounded-lg flex items-center justify-center font-bold shadow-[0_0_15px_rgba(234,179,8,0.3)]">
                         I
                       </div>
-                      <span><strong className="text-yellow-400">Yellow:</strong> Correct letter in the wrong position</span>
+                      <span><strong className="text-yellow-400">Yellow:</strong> Right letter, wrong spot</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 bg-zinc-700/80 border-zinc-600 border-2 rounded-lg flex items-center justify-center font-bold text-zinc-400">
                         O
                       </div>
-                      <span><strong className="text-zinc-400">Gray:</strong> Letter not in the word</span>
+                      <span><strong className="text-zinc-400">Gray:</strong> Letter not in word</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <h3 className="text-white font-bold text-base">🧠 Semantic Hints</h3>
+                  <h3 className="text-white font-bold text-base">🧠 Meaning Hints</h3>
                   <p>
-                    After each guess, you'll receive a <strong className="text-primary">proximity score</strong> (0-100%)
-                    showing how semantically similar your guess is to the target word, plus a related word hint.
+                    Every guess gives you a <strong className="text-primary">Context Score</strong>. The higher the percentage, the closer the meaning!
                   </p>
                   <div className="glass-card p-3 rounded-lg border border-primary/20">
-                    <div className="text-xs text-white/50 mb-1">Example:</div>
+                    <div className="text-xs text-white/50 mb-1">Example: Target is "QUEEN"</div>
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="font-bold text-white">KING</span>
@@ -368,17 +438,17 @@ function App() {
                           </span>
                         </div>
                       </div>
-                      <span className="text-2xl font-black text-yellow-400">68%</span>
+                      <span className="text-2xl font-black text-yellow-400">85%</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <h3 className="text-white font-bold text-base">💡 Strategy</h3>
+                  <h3 className="text-white font-bold text-base">💡 Winning Strategy</h3>
                   <ul className="list-disc list-inside space-y-1 text-white/70">
-                    <li>Use semantic hints to narrow down the <em>meaning</em></li>
-                    <li>Use letter colors to deduce the <em>spelling</em></li>
-                    <li>Combine both types of feedback for faster solving!</li>
+                    <li>Use the <strong>Context Score</strong> to find the right topic.</li>
+                    <li>Use the <strong>Colors</strong> to figure out the spelling.</li>
+                    <li>Remember: The word might not make sense until you check the meaning!</li>
                   </ul>
                 </div>
 
@@ -391,7 +461,7 @@ function App() {
                   </p>
                   <p className="text-[10px] text-white/20 text-center mt-1">
                     <a href="https://skyboundmi.com" target="_blank" rel="noopener noreferrer" className="hover:text-white/40 transition-colors">
-                      © Skybound Solutions, LLC
+                      Proxle™ © 2025 Skybound Solutions LLC. All rights reserved.
                     </a>
                   </p>
                 </div>
@@ -409,7 +479,6 @@ function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4"
-            onClick={() => setShowVictory(false)}
           >
             <motion.div
               initial={{ scale: 0.8, opacity: 0, y: 20 }}
@@ -525,16 +594,43 @@ function App() {
               <div className="text-xs text-white/50 uppercase tracking-wider mb-2">Last Clue Analysis</div>
 
               {/* High Proximity Alert */}
-              {guesses[0].similarity > 80 && (
+              {guesses[0].similarity > 60 && (
                 <motion.div
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  className="mb-3 p-3 bg-gradient-to-r from-orange-500/20 to-red-500/20 border border-orange-500/30 rounded-lg text-center"
+                  className={cn(
+                    "mb-3 p-3 border rounded-lg text-center",
+                    guesses[0].similarity === 100
+                      ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-500/30 cursor-pointer hover:bg-green-500/30 transition-colors"
+                      : "bg-gradient-to-r from-orange-500/20 to-red-500/20 border-orange-500/30"
+                  )}
+                  onClick={() => {
+                    if (guesses[0].similarity === 100) setShowVictory(true);
+                  }}
                 >
-                  <div className="text-lg font-black bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent">
-                    🔥 {guesses[0].similarity > 90 ? "SO CLOSE!" : "ALMOST THERE!"} 🔥
+                  <div className={cn(
+                    "text-lg font-black bg-clip-text text-transparent",
+                    guesses[0].similarity === 100
+                      ? "bg-gradient-to-r from-green-400 to-emerald-400"
+                      : "bg-gradient-to-r from-orange-400 to-red-400"
+                  )}>
+                    {guesses[0].similarity === 100 ? "🎉 VICTORY! 🎉" :
+                      guesses[0].similarity > 85 ? "🔥 SO CLOSE! 🔥" :
+                        "🔥 HEATING UP! 🔥"}
                   </div>
-                  <div className="text-[10px] text-orange-300/80 mt-1">You're burning hot!</div>
+                  <div className={cn(
+                    "text-[10px] mt-1",
+                    guesses[0].similarity === 100 ? "text-green-300/80" : "text-orange-300/80"
+                  )}>
+                    {guesses[0].similarity === 100 ? (
+                      <div className="flex items-center justify-center gap-1">
+                        <span>Tap to Share</span>
+                        <Share2 size={10} />
+                      </div>
+                    ) :
+                      guesses[0].similarity > 85 ? "You're burning hot!" :
+                        "You're on the right track!"}
+                  </div>
                 </motion.div>
               )}
 
@@ -610,9 +706,17 @@ function App() {
                 {/* Metadata */}
                 <div className="flex-1 flex items-center justify-between min-w-0">
                   <div className="flex gap-1.5 flex-wrap">
-                    {g.simWords.map(w => (
-                      <span key={w} className="text-[9px] px-1.5 py-0.5 bg-primary/20 text-primary border border-primary/30 rounded-full whitespace-nowrap">{w}</span>
-                    ))}
+                    {g.simWords.length > 0 ? (
+                      g.simWords.map(w => (
+                        <span key={w} className="text-[9px] px-1.5 py-0.5 bg-primary/20 text-primary border border-primary/30 rounded-full whitespace-nowrap">{w}</span>
+                      ))
+                    ) : (
+                      g.similarity > 60 && (
+                        <span className="text-[9px] px-1.5 py-0.5 bg-orange-500/20 text-orange-300 border border-orange-500/30 rounded-full whitespace-nowrap">
+                          No Hint (So Close!)
+                        </span>
+                      )
+                    )}
                   </div>
                   <span className={cn("font-bold text-sm ml-2 shrink-0",
                     g.similarity > 70 ? "text-green-400" :

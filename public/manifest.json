@@ -1,0 +1,17 @@
+{
+    "name": "Proxle",
+    "short_name": "Proxle",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#09090b",
+    "theme_color": "#09090b",
+    "description": "A hybrid word-guessing game combining semantic discovery with orthographic hints.",
+    "icons": [
+        {
+            "src": "/proxle-icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml"
+        }
+    ],
+    "orientation": "portrait-primary"
+}

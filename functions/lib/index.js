@@ -17,10 +17,11 @@ exports.evaluateGuess = (0, https_1.onCall)({
 }, async (request) => {
     var _a, _b;
     logger.info("Evaluating guess (Real AI)", request.data);
-    const { guessWord } = request.data; // targetWord is no longer accepted from client
+    const { guessWord, previousHints = [] } = request.data;
     const input = guessWord.toUpperCase();
     // Get the hidden target word server-side
     const target = (0, wordList_1.getWordForDate)(new Date()).toUpperCase();
+    const hintsToExclude = [...previousHints, input, target].join(', ');
     // Calculate Orthographic Match Pattern (Green/Yellow/Gray)
     const letterStatus = Array(5).fill('absent');
     const targetArr = target.split('');
@@ -59,6 +60,7 @@ exports.evaluateGuess = (0, https_1.onCall)({
 
 Target word: "${target}"
 Guessed word: "${input}"
+Forbidden hints (do NOT use): ${hintsToExclude}
 
 Tasks:
 1. Determine if "${input}" is a valid, commonly used English word (true/false)
@@ -68,7 +70,10 @@ Tasks:
    - 60-79 = related concepts (e.g., OCEAN -> SHIP)
    - 40-59 = loosely related
    - 0-39 = unrelated
-3. If similarity < 60, provide a one-word thematic hint about the target
+3. If similarity < 60, provide a one-word thematic hint about the target.
+   - The hint MUST be a single word.
+   - The hint MUST NOT be in the "Forbidden hints" list.
+   - The hint MUST NOT be the target word itself.
 
 Return ONLY valid JSON in this exact format:
 {"isValidWord": boolean, "similarity": number, "hint": string}
