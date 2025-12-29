@@ -1,0 +1,34 @@
+@layer utilities {
+    @keyframes slide-up-fade {
+
+        0%,
+        100% {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        90% {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        95% {
+            transform: translateY(-10px);
+            opacity: 0;
+        }
+
+        95.1% {
+            transform: translateY(10px);
+            opacity: 0;
+        }
+
+        100% {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .animate-slide-up-fade {
+        animation: slide-up-fade 3s infinite;
+    }
+}
