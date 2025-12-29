@@ -452,10 +452,33 @@ function App() {
                   </ul>
                 </div>
 
+
                 <div className="pt-4 border-t border-white/10">
                   <p className="text-xs text-white/50 text-center">
                     New puzzle daily • Powered by AI semantic analysis
                   </p>
+
+                  {/* Legal Links */}
+                  <div className="flex gap-4 justify-center mt-4 text-xs">
+                    <a
+                      href="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-white/40 hover:text-white/70 transition-colors underline"
+                    >
+                      Privacy Policy
+                    </a>
+                    <span className="text-white/20">•</span>
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-white/40 hover:text-white/70 transition-colors underline"
+                    >
+                      Terms of Service
+                    </a>
+                  </div>
+
                   <p className="text-xs text-white/30 text-center mt-4">
                     Made with ❤️ for my Loving Wife
                   </p>
