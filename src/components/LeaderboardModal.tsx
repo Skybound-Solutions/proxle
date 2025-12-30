@@ -15,6 +15,7 @@ interface Supporter {
     isAnonymous: boolean;
     showAmount: 'exact' | 'tier' | 'hidden';
     timestamp: any;
+    currentStreak: number;
 }
 
 interface LeaderboardModalProps {
@@ -59,7 +60,8 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                     photoURL: d.photoURL,
                     isAnonymous: d.isAnonymous === true,
                     showAmount: d.showAmount || 'exact',
-                    timestamp: d.lastActiveAt
+                    timestamp: d.lastActiveAt,
+                    currentStreak: d.currentStreak || 0
                 } as Supporter;
             });
 
@@ -90,7 +92,7 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="relative w-full max-w-lg glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col max-h-[90vh]"
+                className="relative w-full max-w-lg glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col max-h-[90vh] z-[60]"
             >
                 {/* Header */}
                 <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
@@ -225,17 +227,22 @@ function BillboardItem({ supporter, rank }: { supporter: Supporter, rank: number
                             {medals[rank]}
                         </div>
                     </div>
-                    <div>
-                        <div className="font-bold text-white flex items-center gap-2">
-                            {supporter.isAnonymous ? 'Anonymous Supporter' : supporter.displayName}
-                        </div>
-                        <div className="text-[10px] text-white/50 uppercase tracking-widest font-mono">
-                            {supporter.showAmount === 'exact' ? `$${supporter.amount.toFixed(2)}` : 'Supporter'}
-                        </div>
+                </div>
+                <div>
+                    <div className="font-bold text-white flex items-center gap-2">
+                        {supporter.isAnonymous ? 'Anonymous Supporter' : supporter.displayName}
+                        {!supporter.isAnonymous && supporter.currentStreak > 0 && (
+                            <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-500/10 border border-orange-500/20 rounded-full">
+                                <span className="text-[10px] text-orange-400">🔥</span>
+                                <span className="text-[10px] font-bold text-orange-300">{supporter.currentStreak}</span>
+                            </div>
+                        )}
+                    </div>
+                    <div className="text-[10px] text-white/50 uppercase tracking-widest font-mono">
+                        {supporter.showAmount === 'exact' ? `$${supporter.amount.toFixed(2)}` : 'Supporter'}
                     </div>
                 </div>
             </div>
-
             {supporter.message && !supporter.isAnonymous && supporter.approvalStatus === 'approved' && (
                 <div className="mt-3 p-3 bg-white/5 rounded-xl border border-white/5 relative z-10">
                     <MessageSquare size={12} className="absolute -top-1.5 -right-1.5 text-cyan-400/50" />
@@ -267,8 +274,14 @@ function SupporterRow({ supporter, rank }: { supporter: Supporter, rank: number 
                         supporter.isAnonymous ? '👤' : '✨'
                     )}
                 </div>
-                <span className="font-medium text-sm text-white/80">
+                <span className="font-medium text-sm text-white/80 flex items-center gap-2">
                     {supporter.isAnonymous ? 'Anonymous' : supporter.displayName}
+                    {!supporter.isAnonymous && supporter.currentStreak > 0 && (
+                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white/5 rounded-full">
+                            <span className="text-[9px] text-orange-400">🔥</span>
+                            <span className="text-[9px] font-bold text-white/60">{supporter.currentStreak}</span>
+                        </div>
+                    )}
                 </span>
             </div>
             <div className="text-sm font-mono font-bold text-white/40">

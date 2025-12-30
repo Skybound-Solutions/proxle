@@ -78,7 +78,7 @@ export default function StatsModal({
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 onClick={(e) => e.stopPropagation()}
-                className="relative w-full max-w-sm glass-panel rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar z-10"
+                className="relative w-full max-w-sm glass-panel rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar z-[60]"
             >
                 <button
                     onClick={onClose}

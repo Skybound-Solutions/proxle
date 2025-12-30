@@ -38,7 +38,8 @@ export const onUserUpdate = onDocumentWritten({
             approvalStatus: afterData.messageApprovalStatus || 'pending',
             isAnonymous: afterData.displayOnLeaderboard === false,
             showAmount: afterData.showAmount || 'exact',
-            lastActiveAt: afterData.lastActiveAt || admin.firestore.FieldValue.serverTimestamp()
+            lastActiveAt: afterData.lastActiveAt || admin.firestore.FieldValue.serverTimestamp(),
+            currentStreak: afterData.currentStreak || 0
         }, { merge: true });
         logger.info(`Synced leaderboard entry for ${userId}`);
     } else {
