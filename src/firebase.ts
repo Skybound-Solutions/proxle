@@ -1,8 +1,9 @@
 import { initializeApp } from "firebase/app";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getAnalytics, logEvent } from "firebase/analytics";
 
-// Initialize Firebase (Project ID doesn't matter for local emulator)
-// Initialize Firebase
 const firebaseConfig = {
     projectId: "proxle-game",
     appId: "1:890224174750:web:827fd57e4f9bb7653ebd8f",
@@ -13,12 +14,28 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const functions = getFunctions(app, 'us-central1');
 
-// Connect to the local emulator in dev mode
+export const functions = getFunctions(app, 'us-central1');
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+
+export const trackEvent = (name: string, params?: any) => {
+    if (analytics) {
+        logEvent(analytics, name, params);
+    }
+};
+
+// Use Google Auth Provider
+export const googleProvider = new GoogleAuthProvider();
+
+// Connect to emulators in dev
 if (import.meta.env.DEV) {
-    // Use LAN IP so it works on other devices on the network
+    // Using the IP address as configured in earlier steps
     const emulatorHost = "10.0.1.195";
-    console.log(`Connecting to Functions Emulator on ${emulatorHost}:5001`);
+    console.log(`Connecting to Emulators on ${emulatorHost}`);
+
     connectFunctionsEmulator(functions, emulatorHost, 5001);
+    // connectAuthEmulator(auth, `http://${emulatorHost}:9099`);
+    // connectFirestoreEmulator(db, emulatorHost, 8080);
 }

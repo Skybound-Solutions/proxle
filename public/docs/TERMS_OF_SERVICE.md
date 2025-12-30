@@ -1,7 +1,7 @@
 # Terms of Service for Proxle
 
-**Last Updated**: December 29, 2024  
-**Effective Date**: December 29, 2024
+**Last Updated**: December 29, 2025  
+**Effective Date**: December 29, 2025
 
 ## 1. Acceptance of Terms
 
@@ -122,7 +122,7 @@ If any provision of these Terms is found to be invalid or unenforceable, the rem
 If you have questions about these Terms:
 
 **Skybound Solutions, LLC**  
-Email: [support@proxle.app](mailto:support@proxle.app) or [razma@skyboundmi.com](mailto:razma@skyboundmi.com)  
+Email: [proxle@skyboundmi.com](mailto:proxle@skyboundmi.com)  
 Website: [https://skyboundmi.com](https://skyboundmi.com)
 
 ---

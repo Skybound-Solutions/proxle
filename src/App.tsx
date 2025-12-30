@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from './firebase';
+import { useNavigate } from 'react-router-dom';
+import { functions, trackEvent } from './firebase';
 import { Info, Share2, Copy, CheckCircle, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import AdSpace from './components/AdSpace';
+import { useAuth } from './hooks/useAuth';
+import ProfileMenu from './components/ProfileMenu';
+import SignInPrompt from './components/SignInPrompt';
+import StatsModal from './components/StatsModal';
+import LeaderboardModal from './components/LeaderboardModal';
+
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -30,6 +37,83 @@ function App() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
 
+  // Auth & New Features
+  const { user, userData, loading, signInWithGoogle, signOutUser, updateStats, updateUserProfile } = useAuth();
+  const [showStats, setShowStats] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
+  const [nextGameTime, setNextGameTime] = useState("");
+  const navigate = useNavigate();
+
+  const ADMIN_EMAILS = ['banklam@skyboundmi.com', 'proxle@skyboundmi.com'];
+  const isAdmin = user && ADMIN_EMAILS.includes(user.email || '');
+
+  // Countdown Timer
+  useEffect(() => {
+    const updateCountdown = () => {
+      const now = new Date();
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const diff = tomorrow.getTime() - now.getTime();
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setNextGameTime(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Update Stats on Game End
+  useEffect(() => {
+    if (showVictory && !guesses.find(g => g.similarity === 100)) {
+      // This is a "game over" but not a win (handled below manually usually, but here checking state)
+      // Wait, handleVirtualInput logic usually sets showVictory.
+      // Let's hook into where showVictory is SET instead of effect to avoid double counting.
+    }
+  }, [showVictory]);
+
+  // FTUE: Show info modal on first visit
+  useEffect(() => {
+    const hasSeenIntro = localStorage.getItem('proxle_has_seen_intro');
+    if (!hasSeenIntro) {
+      setShowInfo(true);
+      localStorage.setItem('proxle_has_seen_intro', 'true');
+    }
+  }, []);
+
+  // Show sign-in prompt after first win (if not signed in)
+  useEffect(() => {
+    if (showVictory && !user && !loading) {
+      const timer = setTimeout(() => setShowSignInPrompt(true), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [showVictory, user, loading]);
+
+  // Load/Save guesses from localStorage for persistence
+  useEffect(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const saved = localStorage.getItem(`proxle_guesses_${todayStr}`);
+    if (saved) {
+      const parsedGuesses = JSON.parse(saved);
+      setGuesses(parsedGuesses);
+      // If they already won today, show victory screen
+      if (parsedGuesses.some((g: Guess) => g.similarity === 100)) {
+        setShowStats(true); // Show stats instead of victory to avoid repeat celebration
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (guesses.length > 0) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      localStorage.setItem(`proxle_guesses_${todayStr}`, JSON.stringify(guesses));
+    }
+  }, [guesses]);
+
   useEffect(() => {
     // Check if iOS
     const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
@@ -37,7 +121,7 @@ function App() {
 
     // Initial check for standalone mode
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
-    if (isStandalone) return; // Don't show install if already installed
+    if (isStandalone) return;
 
     const handler = (e: any) => {
       e.preventDefault();
@@ -45,9 +129,26 @@ function App() {
     };
 
     window.addEventListener('beforeinstallprompt', handler);
-
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
+
+  // Keyboard events
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (showVictory || showInfo || showStats) return;
+
+      if (e.key === 'Backspace') {
+        handleVirtualInput('BACKSPACE');
+      } else if (e.key === 'Enter') {
+        submitGuess();
+      } else if (e.key.length === 1 && /^[a-zA-Z]$/.test(e.key)) {
+        handleVirtualInput(e.key.toUpperCase());
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [input, showVictory, showInfo, showStats]);
 
   const handleInstallClick = async () => {
     if (!installPrompt) return;
@@ -112,7 +213,14 @@ function App() {
 
       // Check for win condition (similarity 100 means exact match)
       if (data.similarity === 100) {
-        setTimeout(() => setShowVictory(true), 500);
+        // WINNER!
+        setShowVictory(true);
+        updateStats(true, guesses.length + 1); // +1 because we are just adding this guess now
+        trackEvent('level_end', { guesses: guesses.length + 1, outcome: 'win' });
+        setTimeout(() => {
+          setShowVictory(false);
+          setShowStats(true);
+        }, 1500);
       }
 
     } catch (error: any) {
@@ -133,6 +241,10 @@ function App() {
       setIsLoading(false);
     }
 
+    if (guesses.length === 0) {
+      trackEvent('game_start');
+    }
+
     setInput("");
   };
 
@@ -146,36 +258,31 @@ function App() {
     }
 
     return (
-      <div className="grid grid-cols-5 gap-2 mb-2">
-        {slots.map((char, i) => {
-          let status: LetterStatus = 'empty';
-
-          if (isGuess && patterns[i]) {
-            status = patterns[i];
-          }
-
-          return (
-            <div
-              key={i}
-              className={cn(
-                "h-14 w-14 border-2 rounded-xl flex items-center justify-center text-2xl font-bold uppercase transition-all duration-300",
-                !char && "border-white/10 bg-white/5",
-                char && !isGuess && "border-white/40 bg-white/10 shadow-[0_0_15px_rgba(255,255,255,0.1)]", // Active Input
-                status === 'correct' && "bg-green-500 border-green-400 text-white shadow-[0_0_20px_rgba(34,197,94,0.4)]",
-                status === 'present' && "bg-yellow-500 border-yellow-400 text-white shadow-[0_0_20px_rgba(234,179,8,0.4)]",
-                status === 'absent' && "bg-zinc-700/80 border-zinc-600 text-zinc-400",
-              )}
-            >
-              {char}
-            </div>
-          );
-        })}
+      <div className="grid grid-cols-5 gap-2 w-full">
+        {slots.map((_, i) => (
+          <motion.div
+            key={i}
+            initial={isGuess ? { scale: 1 } : { scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: i * 0.05 }}
+            className={cn(
+              "aspect-square flex items-center justify-center text-2xl font-black rounded-xl border-2 transition-all duration-300",
+              inputUpper[i] ? "border-white/40 bg-white/10" : "border-white/10 bg-black/20",
+              isGuess && patterns[i] === 'correct' && "bg-green-500/80 border-green-400 text-white",
+              isGuess && patterns[i] === 'present' && "bg-yellow-500/80 border-yellow-400 text-white",
+              isGuess && patterns[i] === 'absent' && "bg-white/5 border-white/20 text-white/40"
+            )}
+          >
+            {inputUpper[i] || ""}
+          </motion.div>
+        ))}
       </div>
     );
   };
 
   // Generate shareable text with emoji grid
   const generateShareText = () => {
+    const streakText = userData?.currentStreak ? ` 🔥 Streak: ${userData.currentStreak}` : '';
     const emojiGrid = guesses.slice().reverse().map((guess) => {
       const isWinningGuess = guess.similarity === 100;
 
@@ -196,42 +303,45 @@ function App() {
       return `${emojiRow} ${Math.floor(guess.similarity)}%`;
     }).join('\n');
 
-    return `Proxle ${guesses.length}/${guesses.length}\n\n${emojiGrid}`;
+    return `Proxle ${guesses.length} guesses${streakText}\n\n${emojiGrid}\n\nJoin the hunt: https://proxle.app`;
   };
 
   // Share using Web Share API
   const handleShare = async () => {
     const shareText = generateShareText();
-    const shareUrl = 'https://proxle.app';
-    const shareData = {
-      title: 'Proxle',
-      text: `${shareText}\n\nPlay Proxle at: ${shareUrl}`,
-    };
+    trackEvent('share', { method: 'web_share', guesses: guesses.length });
 
+    // Try native share on any mobile-ish device
     if (navigator.share) {
       try {
-        await navigator.share(shareData);
+        await navigator.share({
+          title: 'PROXLE',
+          text: shareText,
+        });
         setShareStatus('shared');
-        setTimeout(() => setShareStatus('idle'), 2000);
-      } catch (err: any) {
-        // User cancelled or error occurred
-        if (err.name !== 'AbortError') {
-          console.log('Share error:', err);
-          // Fallback to clipboard
-          handleCopyToClipboard();
+        return;
+      } catch (err) {
+        // If it's an "AbortError", the user just closed the sheet, no need to alert
+        if ((err as Error).name !== 'AbortError') {
+          console.error('Error sharing:', err);
         }
       }
-    } else {
-      // Fallback to clipboard if Web Share API not available
-      handleCopyToClipboard();
+    }
+
+    // Fallback to clipboard
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setShareStatus('copied');
+      setTimeout(() => setShareStatus('idle'), 2000);
+    } catch (err) {
+      handleCopyToClipboard(); // Final fallback
     }
   };
 
   // Copy to clipboard fallback
   const handleCopyToClipboard = async () => {
-    const shareText = generateShareText();
-    const shareUrl = 'https://proxle.app';
-    const fullText = `${shareText}\n\nPlay Proxle: ${shareUrl}`;
+    const fullText = generateShareText();
+    trackEvent('share', { method: 'clipboard', guesses: guesses.length });
 
     try {
       await navigator.clipboard.writeText(fullText);
@@ -305,20 +415,102 @@ function App() {
       </div>
 
       {/* Header */}
-      <header className="w-full max-w-md p-4 flex items-center justify-between z-10 glass-panel mb-6 mt-4 rounded-2xl mx-4">
-        <div className="relative shrink-0">
-          <h1 className="text-3xl font-black tracking-wide font-display bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]">
-            PROXLE
-          </h1>
-          <span className="absolute -right-2.5 top-0 text-[10px] font-medium text-blue-400/80">™</span>
-        </div>
+      <header className="w-full max-w-md p-4 flex items-center justify-between z-[40] glass-panel mb-6 mt-4 rounded-2xl mx-4">
+        <h1 className="text-xl font-black tracking-tighter bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500 bg-clip-text text-transparent shrink-0">
+          PROXLE
+        </h1>
 
-        <AdSpace type="coffee" variant="header" />
+        <AdSpace type="coffee" variant="header" onClick={() => setShowLeaderboard(true)} />
 
-        <div className="flex gap-2 shrink-0">
-          <button className="p-2 hover:bg-white/10 rounded-full transition-colors" onClick={() => setShowInfo(true)}><Info size={20} /></button>
+        <div className="flex gap-2 shrink-0 items-center">
+          <button className="p-2 hover:bg-white/10 rounded-full transition-colors" onClick={() => setShowInfo(true)}>
+            <Info size={20} />
+          </button>
+
+          {/* Profile Menu or Sign In */}
+          {loading ? (
+            <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+          ) : user ? (
+            <ProfileMenu
+              user={{
+                displayName: user.displayName,
+                email: user.email,
+                photoURL: user.photoURL,
+              }}
+              stats={userData}
+              onSignOut={signOutUser}
+              onViewStats={() => setShowStats(true)}
+              isAdmin={!!isAdmin}
+              onViewAdmin={() => navigate('/admin')}
+            />
+          ) : (
+            <button
+              onClick={signInWithGoogle}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-full text-xs font-bold transition-all duration-200 active:scale-95 border border-white/10"
+            >
+              Sign In
+            </button>
+          )}
         </div>
       </header>
+
+      {/* Sign-In Prompt (after first win) */}
+      <AnimatePresence>
+        {showSignInPrompt && !user && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="glass-overlay"
+            onClick={() => setShowSignInPrompt(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <SignInPrompt
+                onSignIn={async () => {
+                  try {
+                    await signInWithGoogle();
+                    setShowSignInPrompt(false);
+                  } catch (e) {
+                    console.error("Sign in error:", e);
+                  }
+                }}
+                onDismiss={() => setShowSignInPrompt(false)}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Stats Modal */}
+      <AnimatePresence>
+        {showStats && (
+          <StatsModal
+            stats={userData} // Computed stats
+            userData={userData} // Full doc (contains donations, messages, etc)
+            isOpen={showStats}
+            onClose={() => setShowStats(false)}
+            onUpdateProfile={updateUserProfile}
+            onShare={handleShare}
+            shareStatus={shareStatus}
+            nextGameTime={nextGameTime}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Leaderboard Modal */}
+      <AnimatePresence>
+        {showLeaderboard && (
+          <LeaderboardModal
+            isOpen={showLeaderboard}
+            onClose={() => setShowLeaderboard(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Info Modal */}
       <AnimatePresence>
@@ -327,7 +519,7 @@ function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="glass-overlay"
             onClick={() => setShowInfo(false)}
           >
             <motion.div
@@ -501,7 +693,7 @@ function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4"
+            className="glass-overlay flex items-center justify-center p-4 z-[100]"
           >
             <motion.div
               initial={{ scale: 0.8, opacity: 0, y: 20 }}
@@ -597,7 +789,7 @@ function App() {
       </AnimatePresence>
 
       {/* Game Board */}
-      <main className="flex-1 w-full max-w-md px-4 flex flex-col z-10">
+      <main className="flex-1 w-full max-w-md px-4 flex flex-col z-10 items-stretch">
 
         {/* Active Input Area */}
         <div className="mb-8 relative">

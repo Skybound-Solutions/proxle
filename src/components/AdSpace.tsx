@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface AdSpaceProps {
     type?: 'banner' | 'coffee';
     variant?: 'default' | 'header';
+    onClick?: () => void;
 }
 
-const AdSpace: React.FC<AdSpaceProps> = ({ type = 'coffee', variant = 'default' }) => {
+const AdSpace: React.FC<AdSpaceProps> = ({ type = 'coffee', variant = 'default', onClick }) => {
     const [index, setIndex] = React.useState(0);
 
     const phrases = [
@@ -40,30 +41,51 @@ const AdSpace: React.FC<AdSpaceProps> = ({ type = 'coffee', variant = 'default' 
         return (
             <div className="flex-1 flex justify-center px-4">
                 {type === 'coffee' ? (
-                    <a
-                        href="https://ko-fi.com/skyboundmi"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all active:scale-95 group overflow-hidden w-[140px] justify-start relative"
-                    >
-                        <span className="text-lg shrink-0 z-10">☕</span>
-
-                        {/* Fixed height container for text */}
-                        <div className="h-[20px] relative flex-1 overflow-hidden flex items-center">
-                            <AnimatePresence mode="wait">
-                                <motion.span
-                                    key={index}
-                                    initial={{ opacity: 0, y: 5 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -5 }}
-                                    transition={{ duration: 0.5 }}
-                                    className="text-[10px] font-bold text-white/70 group-hover:text-white uppercase tracking-wider whitespace-nowrap absolute left-0"
-                                >
-                                    {phrases[index]}
-                                </motion.span>
-                            </AnimatePresence>
-                        </div>
-                    </a>
+                    onClick ? (
+                        <button
+                            onClick={onClick}
+                            className="flex items-center gap-3 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all active:scale-95 group overflow-hidden w-[140px] justify-start relative text-left"
+                        >
+                            <span className="text-lg shrink-0 z-10">☕</span>
+                            <div className="h-[20px] relative flex-1 overflow-hidden flex items-center">
+                                <AnimatePresence mode="wait">
+                                    <motion.span
+                                        key={index}
+                                        initial={{ opacity: 0, y: 5 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -5 }}
+                                        transition={{ duration: 0.5 }}
+                                        className="text-[10px] font-bold text-white/70 group-hover:text-white uppercase tracking-wider whitespace-nowrap absolute left-0"
+                                    >
+                                        {phrases[index]}
+                                    </motion.span>
+                                </AnimatePresence>
+                            </div>
+                        </button>
+                    ) : (
+                        <a
+                            href="https://ko-fi.com/skyboundmi"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all active:scale-95 group overflow-hidden w-[140px] justify-start relative"
+                        >
+                            <span className="text-lg shrink-0 z-10">☕</span>
+                            <div className="h-[20px] relative flex-1 overflow-hidden flex items-center">
+                                <AnimatePresence mode="wait">
+                                    <motion.span
+                                        key={index}
+                                        initial={{ opacity: 0, y: 5 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -5 }}
+                                        transition={{ duration: 0.5 }}
+                                        className="text-[10px] font-bold text-white/70 group-hover:text-white uppercase tracking-wider whitespace-nowrap absolute left-0"
+                                    >
+                                        {phrases[index]}
+                                    </motion.span>
+                                </AnimatePresence>
+                            </div>
+                        </a>
+                    )
                 ) : (
                     <div className="h-8 w-24 bg-white/5 rounded flex items-center justify-center border border-white/5">
                         <span className="text-[8px] text-white/20 uppercase tracking-widest">Ad</span>

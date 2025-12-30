@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.evaluateGuess = void 0;
+exports.kofiWebhook = exports.onUserUpdate = exports.evaluateGuess = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const generative_ai_1 = require("@google/generative-ai");
@@ -114,4 +114,10 @@ Example: {"isValidWord": true, "similarity": 85, "hint": "Nautical"}`;
         };
     }
 });
+// User Notifications
+var notifications_1 = require("./notifications");
+Object.defineProperty(exports, "onUserUpdate", { enumerable: true, get: function () { return notifications_1.onUserUpdate; } });
+// Ko-fi Integration
+var kofi_1 = require("./kofi");
+Object.defineProperty(exports, "kofiWebhook", { enumerable: true, get: function () { return kofi_1.kofiWebhook; } });
 //# sourceMappingURL=index.js.map

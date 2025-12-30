@@ -42,11 +42,16 @@
 
 /* Glassmorphism Utilities */
 .glass-panel {
-  @apply bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl;
+  @apply bg-background/90 backdrop-blur-sm border border-white/10 shadow-2xl;
+  background-image: linear-gradient(to bottom right, rgba(255, 255, 255, 0.05), transparent);
 }
 
 .glass-card {
-  @apply bg-secondary/30 backdrop-blur-md border border-white/5;
+  @apply bg-white/5 backdrop-blur-lg border border-white/10 shadow-lg;
+}
+
+.glass-overlay {
+  @apply fixed inset-0 bg-black/60 z-50 transition-opacity;
 }
 
 /* Custom Scrollbar */

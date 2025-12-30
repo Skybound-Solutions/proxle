@@ -1,7 +1,7 @@
 # Privacy Policy for Proxle
 
-**Last Updated**: December 29, 2024  
-**Effective Date**: December 29, 2024
+**Last Updated**: December 29, 2025  
+**Effective Date**: December 29, 2025
 
 ## Introduction
 
@@ -119,7 +119,7 @@ Update your profile information (currently limited to what's synced from your Go
 ### 4. Withdraw Consent
 Stop using the Service at any time. You can sign out and your data will remain stored unless you request deletion.
 
-**To exercise any of these rights, contact us at**: [support@proxle.app](mailto:support@proxle.app) or [razma@skyboundmi.com](mailto:razma@skyboundmi.com)
+**To exercise any of these rights, contact us at**: [proxle@skyboundmi.com](mailto:proxle@skyboundmi.com)
 
 ---
 
@@ -136,6 +136,11 @@ We use the following third-party services:
 - **Purpose**: AI/ML services (semantic word analysis)
 - **Data Shared**: Your guesses (words only, not linked to your identity)
 - **Privacy Policy**: [https://cloud.google.com/terms/cloud-privacy-notice](https://cloud.google.com/terms/cloud-privacy-notice)
+
+### Cloudflare
+- **Purpose**: CDN, DNS, SSL/TLS, DDoS protection
+- **Data Shared**: IP addresses, request headers (as part of proxying web traffic)
+- **Privacy Policy**: [https://www.cloudflare.com/privacypolicy/](https://www.cloudflare.com/privacypolicy/)
 
 ### Ko-fi (Optional)
 - **Purpose**: Support/donations (if you choose to use the "Buy Me a Coffee" link)
@@ -181,7 +186,7 @@ We may update this Privacy Policy from time to time. When we do:
 If you have any questions, concerns, or requests regarding this Privacy Policy or your data:
 
 **Skybound Solutions, LLC**  
-Email: [support@proxle.app](mailto:support@proxle.app) or [razma@skyboundmi.com](mailto:razma@skyboundmi.com)  
+Email: [proxle@skyboundmi.com](mailto:proxle@skyboundmi.com)  
 Website: [https://skyboundmi.com](https://skyboundmi.com)
 
 ---
