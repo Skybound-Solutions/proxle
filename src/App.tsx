@@ -406,7 +406,7 @@ function App() {
   };
 
   return (
-    <div className="h-screen bg-background text-foreground font-sans flex flex-col items-center overflow-hidden relative selection:bg-primary selection:text-primary-foreground">
+    <div className="h-[100dvh] w-full bg-background text-foreground font-sans flex flex-col items-center overflow-hidden relative selection:bg-primary selection:text-primary-foreground">
 
       {/* Background Ambience */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -971,7 +971,7 @@ function App() {
       </main>
 
       {/* Keyboard */}
-      <footer className="w-full max-w-md p-2 z-20 bg-background/90 backdrop-blur-md border-t border-white/5 pb-8 pt-2">
+      <footer className="w-full max-w-md p-2 z-20 bg-background/90 backdrop-blur-md border-t border-white/5 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2">
         <div className="flex flex-col gap-2">
           {["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"].map((row, rowIdx) => (
             <div key={rowIdx} className="flex justify-center gap-1.5">
