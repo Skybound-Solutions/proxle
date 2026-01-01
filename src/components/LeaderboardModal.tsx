@@ -64,36 +64,48 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                 limit(10)
             );
 
-            const [donatorsSnap, streaksSnap] = await Promise.all([
+            const [donatorsResult, streaksResult] = await Promise.allSettled([
                 getDocs(donatorsQuery),
                 getDocs(streaksQuery)
             ]);
 
-            const donatorsData = donatorsSnap.docs.map(doc => {
-                const d = doc.data();
-                return {
-                    id: doc.id,
-                    displayName: d.displayName || 'Anonymous',
-                    amount: d.amount || 0,
-                    message: d.message,
-                    approvalStatus: d.approvalStatus || 'pending',
-                    photoURL: d.photoURL,
-                    showDonationAmount: d.showAmount !== false,
-                    timestamp: d.lastActiveAt,
-                    currentStreak: d.currentStreak || 0,
-                    showStreak: d.showStreak !== false
-                } as Supporter;
-            });
+            const donatorsData = donatorsResult.status === 'fulfilled'
+                ? donatorsResult.value.docs.map(doc => {
+                    const d = doc.data();
+                    return {
+                        id: doc.id,
+                        displayName: d.displayName || 'Anonymous',
+                        amount: d.amount || 0,
+                        message: d.message,
+                        approvalStatus: d.approvalStatus || 'pending',
+                        photoURL: d.photoURL,
+                        showDonationAmount: d.showAmount !== false,
+                        timestamp: d.lastActiveAt,
+                        currentStreak: d.currentStreak || 0,
+                        showStreak: d.showStreak !== false
+                    } as Supporter;
+                })
+                : [];
 
-            const streaksData = streaksSnap.docs.map(doc => {
-                const d = doc.data();
-                return {
-                    id: doc.id,
-                    displayName: d.leaderboardName || 'Anonymous',
-                    currentStreak: d.currentStreak || 0,
-                    photoURL: d.photoURL
-                } as StreakLeader;
-            });
+            if (donatorsResult.status === 'rejected') {
+                console.error("Failed to fetch donators:", donatorsResult.reason);
+            }
+
+            const streaksData = streaksResult.status === 'fulfilled'
+                ? streaksResult.value.docs.map(doc => {
+                    const d = doc.data();
+                    return {
+                        id: doc.id,
+                        displayName: d.leaderboardName || 'Anonymous',
+                        currentStreak: d.currentStreak || 0,
+                        photoURL: d.photoURL
+                    } as StreakLeader;
+                })
+                : [];
+
+            if (streaksResult.status === 'rejected') {
+                console.error("Failed to fetch streaks:", streaksResult.reason);
+            }
 
             setSupporters(donatorsData);
             setStreakLeaders(streaksData);
