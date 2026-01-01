@@ -15,12 +15,15 @@ import * as admin from 'firebase-admin';
 try {
     const serviceAccount = require('../../service-account-key.json');
     admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: admin.credential.cert(serviceAccount),
+        projectId: 'proxle-game'
     });
     console.log("Credential source: service-account-key.json");
 } catch (e) {
     console.log("Credential source: Application Default Credentials (ADC)");
-    admin.initializeApp();
+    admin.initializeApp({
+        projectId: 'proxle-game'
+    });
 }
 
 const db = admin.firestore();

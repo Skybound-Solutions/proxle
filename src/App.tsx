@@ -815,7 +815,7 @@ function App() {
       </AnimatePresence>
 
       {/* Game Board */}
-      <main className="flex-shrink w-full max-w-md px-4 flex flex-col z-10 items-stretch overflow-hidden">
+      <main className="flex-1 w-full max-w-md px-4 flex flex-col z-10 items-stretch overflow-hidden">
 
         {/* Active Input Area */}
         <div className="mb-4 relative">
@@ -912,7 +912,7 @@ function App() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto max-h-[20vh] space-y-1.5 pr-2 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
           {guesses.map((g, i) => (
             <div key={i} className="bg-white/5 rounded-lg border border-white/5 p-2">
               <div className="flex items-center gap-3">
@@ -971,7 +971,7 @@ function App() {
       </main>
 
       {/* Keyboard */}
-      <footer className="w-full max-w-md p-2 z-20 bg-background/90 backdrop-blur-md border-t border-white/5 pb-4 pt-2">
+      <footer className="w-full max-w-md p-2 z-20 bg-background/90 backdrop-blur-md border-t border-white/5 pb-8 pt-2">
         <div className="flex flex-col gap-2">
           {["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"].map((row, rowIdx) => (
             <div key={rowIdx} className="flex justify-center gap-1.5">
