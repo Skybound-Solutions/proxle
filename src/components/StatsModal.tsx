@@ -1,47 +1,25 @@
 import { motion } from 'framer-motion';
-import { X, Share2, Check, Edit2 } from 'lucide-react';
+import { X, Share2 } from 'lucide-react';
 import type { UserStats } from '../lib/stats';
-import { useState } from 'react';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase';
+
 
 interface StatsModalProps {
     stats: UserStats | null;
-    userData: any | null; // Full user document data
     isOpen: boolean;
     onClose: () => void;
     onShare: () => void;
-    onUpdateProfile?: (data: any) => Promise<void>;
     shareStatus: 'idle' | 'copied' | 'shared';
     nextGameTime: string;
 }
 
 export default function StatsModal({
     stats,
-    userData,
     isOpen,
     onClose,
     onShare,
-    onUpdateProfile,
     shareStatus,
     nextGameTime
 }: StatsModalProps) {
-    const [isEditing, setIsEditing] = useState(false);
-
-    // Suggested name from Google account (only used when they first turn on leaderboard)
-    const suggestedName = userData?.displayOnLeaderboard === false && userData?.displayName
-        ? `${userData.displayName.split(' ')[0]} ${userData.displayName.split(' ')[1]?.[0] || ''}.`
-        : '';
-
-    const [formData, setFormData] = useState({
-        leaderboardName: userData?.leaderboardName || suggestedName || 'Anonymous',
-        message: userData?.message || '',
-        displayOnLeaderboard: userData?.displayOnLeaderboard !== false,
-        showDonationAmount: userData?.showDonationAmount !== false,
-        showStreak: userData?.showStreak !== false
-    });
-    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
-
     if (!isOpen) return null;
 
     const displayStats = stats || {
@@ -55,58 +33,7 @@ export default function StatsModal({
     };
 
     const maxFreq = Math.max(...Object.values(displayStats.guessDistribution), 1);
-    const isSupporter = (userData?.donations?.total || 0) > 0;
 
-    const handleSave = async () => {
-        if (!onUpdateProfile) return;
-        setSaveStatus('saving');
-
-        try {
-            // If leaderboard name changed and user opted in, check it with AI
-            if (formData.displayOnLeaderboard &&
-                formData.leaderboardName !== userData?.leaderboardName &&
-                formData.leaderboardName.toLowerCase() !== 'anonymous') {
-
-                // Call AI moderation function
-                const checkName = httpsCallable(functions, 'checkLeaderboardName');
-
-                try {
-                    const result = await checkName({ name: formData.leaderboardName });
-                    const data = result.data as { approved: boolean; reason?: string };
-
-                    if (!data.approved) {
-                        // Revert to previous name and show error
-                        setFormData({
-                            ...formData,
-                            leaderboardName: userData?.leaderboardName || 'Anonymous'
-                        });
-
-                        const reason = data.reason || 'This name was flagged as inappropriate';
-                        alert(`❌ ${reason}\n\nPlease choose a different name.`);
-                        setSaveStatus('idle');
-                        return;
-                    }
-                } catch (moderationError) {
-                    console.error("Name moderation error:", moderationError);
-                    alert('❌ Unable to verify name.\n\nPlease try again or contact support.');
-                    setSaveStatus('idle');
-                    return;
-                }
-            }
-
-            // Name approved (or didn't change), proceed with save
-            await onUpdateProfile(formData);
-            setSaveStatus('saved');
-            setTimeout(() => {
-                setSaveStatus('idle');
-                setIsEditing(false);
-            }, 1500);
-        } catch (error) {
-            console.error("Save error:", error);
-            alert('❌ Failed to save settings.\n\nPlease try again.');
-            setSaveStatus('idle');
-        }
-    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -159,147 +86,6 @@ export default function StatsModal({
                             </div>
                         </div>
                     ))}
-                </div>
-
-                {/* Leaderboard Settings Section - Available to ALL users */}
-                <div className="mb-8 p-4 bg-white/5 rounded-xl border border-white/10">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xs font-bold uppercase tracking-widest text-white/40 flex items-center gap-2">
-                            🏆 Leaderboard Settings
-                        </h3>
-                        <button
-                            onClick={() => setIsEditing(!isEditing)}
-                            className="text-white/40 hover:text-white transition-colors"
-                        >
-                            <Edit2 size={14} />
-                        </button>
-                    </div>
-
-                    {isEditing ? (
-                        <div className="space-y-4">
-                            {/* Opt-in Toggle */}
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <label className="text-xs text-white/70 font-medium">Appear on Leaderboard</label>
-                                    <p className="text-[10px] text-white/40 mt-0.5">Show your stats and/or support publicly</p>
-                                </div>
-                                <button
-                                    onClick={() => setFormData({ ...formData, displayOnLeaderboard: !formData.displayOnLeaderboard })}
-                                    className={`w-10 h-6 rounded-full transition-colors relative ${formData.displayOnLeaderboard ? 'bg-cyan-500' : 'bg-white/10'}`}
-                                >
-                                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.displayOnLeaderboard ? 'left-5' : 'left-1'}`} />
-                                </button>
-                            </div>
-
-                            {/* Only show privacy controls if opted in */}
-                            {formData.displayOnLeaderboard && (
-                                <>
-                                    {/* Display Name */}
-                                    <div>
-                                        <label className="text-[10px] uppercase text-white/40 block mb-1">
-                                            Display Name
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={formData.leaderboardName}
-                                            onChange={(e) => setFormData({ ...formData, leaderboardName: e.target.value })}
-                                            maxLength={30}
-                                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500/50"
-                                            placeholder="How you appear on leaderboard"
-                                        />
-                                        <p className="text-[10px] text-white/40 mt-1">
-                                            📝 Names are reviewed for appropriateness
-                                        </p>
-                                    </div>
-
-                                    {/* Show Streak Toggle */}
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <label className="text-xs text-white/70 font-medium">Show My Streak</label>
-                                            <p className="text-[10px] text-white/40 mt-0.5">Display your 🔥 streak badge</p>
-                                        </div>
-                                        <button
-                                            onClick={() => setFormData({ ...formData, showStreak: !formData.showStreak })}
-                                            className={`w-10 h-6 rounded-full transition-colors relative ${formData.showStreak ? 'bg-cyan-500' : 'bg-white/10'}`}
-                                        >
-                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.showStreak ? 'left-5' : 'left-1'}`} />
-                                        </button>
-                                    </div>
-
-                                    {/* Show Donation Amount Toggle (only if supporter) */}
-                                    {isSupporter && (
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <label className="text-xs text-white/70 font-medium">Show Donation Amount</label>
-                                                <p className="text-[10px] text-white/40 mt-0.5">Display exact $ or show 💎 icon</p>
-                                            </div>
-                                            <button
-                                                onClick={() => setFormData({ ...formData, showDonationAmount: !formData.showDonationAmount })}
-                                                className={`w-10 h-6 rounded-full transition-colors relative ${formData.showDonationAmount ? 'bg-cyan-500' : 'bg-white/10'}`}
-                                            >
-                                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.showDonationAmount ? 'left-5' : 'left-1'}`} />
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {/* Billboard Message (Top 3 only) */}
-                                    {isSupporter && (
-                                        <div>
-                                            <label className="text-[10px] uppercase text-white/40 block mb-1">
-                                                Billboard Message (Top 3 Only)
-                                            </label>
-                                            <textarea
-                                                value={formData.message}
-                                                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                                                maxLength={60}
-                                                rows={2}
-                                                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500/50 resize-none"
-                                                placeholder="Your message for all to see..."
-                                            />
-                                            <p className="text-[10px] text-white/40 mt-1">
-                                                💬 Only visible if you're in the top 3 supporters
-                                            </p>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-
-                            {/* Save Button */}
-                            <button
-                                onClick={handleSave}
-                                disabled={saveStatus === 'saving'}
-                                className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                            >
-                                {saveStatus === 'saving' ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> :
-                                    saveStatus === 'saved' ? <Check size={18} /> : 'Save Settings'}
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-white/40">Leaderboard Status</span>
-                                <span className={`font-medium ${formData.displayOnLeaderboard ? 'text-cyan-400' : 'text-white/60'}`}>
-                                    {formData.displayOnLeaderboard ? '✓ Visible' : 'Hidden'}
-                                </span>
-                            </div>
-                            {formData.displayOnLeaderboard && (
-                                <>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-white/40">Display Name</span>
-                                        <span className="text-white font-medium">{formData.leaderboardName || 'Anonymous'}</span>
-                                    </div>
-                                    {formData.message && (
-                                        <div className="text-xs italic text-cyan-400 opacity-80 mt-2">"{formData.message}"</div>
-                                    )}
-                                    {isSupporter && (
-                                        <div className="text-[10px] text-white/30 text-center mt-2 pt-2 border-t border-white/10">
-                                            Total Donated: ${userData?.donations?.total?.toFixed(2)}
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    )}
                 </div>
 
                 {/* Footer: Countdown & Share */}

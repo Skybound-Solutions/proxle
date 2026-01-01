@@ -12,6 +12,7 @@ import ProfileMenu from './components/ProfileMenu';
 import SignInPrompt from './components/SignInPrompt';
 import StatsModal from './components/StatsModal';
 import LeaderboardModal from './components/LeaderboardModal';
+import LeaderboardSettingsModal from './components/LeaderboardSettingsModal';
 
 
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -41,6 +42,7 @@ function App() {
   const { user, userData, loading, signInWithGoogle, signOutUser, updateStats, updateUserProfile, authError, isRetrying, clearAuthError } = useAuth();
   const [showStats, setShowStats] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showLeaderboardSettings, setShowLeaderboardSettings] = useState(false);
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
   const [nextGameTime, setNextGameTime] = useState("");
   const navigate = useNavigate();
@@ -440,6 +442,7 @@ function App() {
               stats={userData}
               onSignOut={signOutUser}
               onViewStats={() => setShowStats(true)}
+              onViewLeaderboardSettings={() => setShowLeaderboardSettings(true)}
               isAdmin={!!isAdmin}
               onViewAdmin={() => navigate('/admin')}
             />
@@ -508,13 +511,23 @@ function App() {
         {showStats && (
           <StatsModal
             stats={userData} // Computed stats
-            userData={userData} // Full doc (contains donations, messages, etc)
             isOpen={showStats}
             onClose={() => setShowStats(false)}
-            onUpdateProfile={updateUserProfile}
             onShare={handleShare}
             shareStatus={shareStatus}
             nextGameTime={nextGameTime}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Leaderboard Settings Modal */}
+      <AnimatePresence>
+        {showLeaderboardSettings && (
+          <LeaderboardSettingsModal
+            userData={userData}
+            isOpen={showLeaderboardSettings}
+            onClose={() => setShowLeaderboardSettings(false)}
+            onUpdateProfile={updateUserProfile}
           />
         )}
       </AnimatePresence>

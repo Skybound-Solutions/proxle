@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, LayoutDashboard, BarChart3 } from 'lucide-react';
+import { LogOut, LayoutDashboard, BarChart3, Trophy } from 'lucide-react';
 import type { UserStats } from '../lib/stats';
 
 interface ProfileMenuProps {
@@ -12,11 +12,12 @@ interface ProfileMenuProps {
     stats: UserStats | null;
     onSignOut: () => void;
     onViewStats: () => void;
+    onViewLeaderboardSettings: () => void;
     onViewAdmin?: () => void;
     isAdmin?: boolean;
 }
 
-export default function ProfileMenu({ user, stats, onSignOut, onViewStats, onViewAdmin, isAdmin }: ProfileMenuProps) {
+export default function ProfileMenu({ user, stats, onSignOut, onViewStats, onViewLeaderboardSettings, onViewAdmin, isAdmin }: ProfileMenuProps) {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -110,6 +111,17 @@ export default function ProfileMenu({ user, stats, onSignOut, onViewStats, onVie
                                     <span className="text-sm font-bold tracking-tight">Nexus Control Dashboard</span>
                                 </button>
                             )}
+
+                            <button
+                                onClick={() => {
+                                    onViewLeaderboardSettings();
+                                    setIsOpen(false);
+                                }}
+                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/10 rounded-lg transition-colors text-left text-white/90 mb-1"
+                            >
+                                <Trophy size={18} className="text-yellow-400" />
+                                <span className="text-sm font-bold">Leaderboard Settings</span>
+                            </button>
 
                             <button
                                 onClick={() => {
