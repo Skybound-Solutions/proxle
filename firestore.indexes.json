@@ -1,0 +1,23 @@
+{
+    "indexes": [
+        {
+            "collectionGroup": "users",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "displayOnLeaderboard",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "showStreak",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "currentStreak",
+                    "order": "DESCENDING"
+                }
+            ]
+        }
+    ],
+    "fieldOverrides": []
+}
