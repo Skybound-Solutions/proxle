@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, X, Heart, MessageSquare, Flame } from 'lucide-react';
-import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
+import { Trophy, X, Heart, MessageSquare, Flame, ChevronDown } from 'lucide-react';
+import { collection, query, orderBy, limit, getDocs, where, startAfter, getCountFromServer, DocumentSnapshot, startAt } from 'firebase/firestore';
 import { db } from '../firebase';
 import clsx from 'clsx';
+
 
 interface Supporter {
     id: string;
@@ -16,6 +17,7 @@ interface Supporter {
     timestamp: any;
     currentStreak: number;
     showStreak: boolean;
+    actualStreakRank?: number; // Fetched rank
 }
 
 interface StreakLeader {
@@ -23,45 +25,76 @@ interface StreakLeader {
     displayName: string;
     currentStreak: number;
     photoURL?: string;
+    rank: number | string; // Allow '?' for jump
+    isCurrentUser?: boolean;
 }
 
 interface LeaderboardModalProps {
     isOpen: boolean;
     onClose: () => void;
+    currentUserData: any; // Use any to allow accessing email not in UserStats
 }
 
-export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalProps) {
-    const [supporters, setSupporters] = useState<Supporter[]>([]);
+const ITEMS_PER_PAGE = 20;
+
+export default function LeaderboardModal({ isOpen, onClose, currentUserData }: LeaderboardModalProps) {
+    const [topDonators, setTopDonators] = useState<Supporter[]>([]);
     const [streakLeaders, setStreakLeaders] = useState<StreakLeader[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
+    const [myRank, setMyRank] = useState<number | null>(null);
+
+    // Scroll container ref for infinite scroll
+    const observer = useRef<IntersectionObserver | null>(null);
+    const lastElementRef = useCallback((node: HTMLDivElement) => {
+        if (loading || loadingMore) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                loadMoreStreaks();
+            }
+        });
+        if (node) observer.current.observe(node);
+    }, [loading, loadingMore, hasMore]);
+
 
     useEffect(() => {
         if (isOpen) {
-            fetchLeaderboardData();
+            resetAndFetch();
         }
     }, [isOpen]);
 
-    const fetchLeaderboardData = async () => {
+    const resetAndFetch = async () => {
         setLoading(true);
+        setStreakLeaders([]);
+        setLastDoc(null);
+        setHasMore(true);
+
+        // 1. Fetch Rank if User Exists
+        if (currentUserData?.displayOnLeaderboard && currentUserData.currentStreak > 0) {
+            calculateMyRank(currentUserData.currentStreak);
+        } else {
+            setMyRank(null);
+        }
+
         try {
-            // Fetch top donators from leaderboard collection
-            const leaderboardRef = collection(db, 'leaderboard');
+            // 2. Initial Data Fetch (Top Donators + First Page Streaks)
             const donatorsQuery = query(
-                leaderboardRef,
+                collection(db, 'leaderboard'),
                 where('amount', '>', 0),
                 orderBy('amount', 'desc'),
-                limit(50)
+                limit(3)
             );
 
-            // Fetch top 10 streaks from users collection
-            const usersRef = collection(db, 'users');
             const streaksQuery = query(
-                usersRef,
+                collection(db, 'users'),
                 where('displayOnLeaderboard', '==', true),
                 where('showStreak', '==', true),
                 where('currentStreak', '>=', 1),
                 orderBy('currentStreak', 'desc'),
-                limit(10)
+                limit(ITEMS_PER_PAGE)
             );
 
             const [donatorsResult, streaksResult] = await Promise.allSettled([
@@ -69,8 +102,9 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                 getDocs(streaksQuery)
             ]);
 
-            const donatorsData = donatorsResult.status === 'fulfilled'
-                ? donatorsResult.value.docs.map(doc => {
+            // Process Donators
+            if (donatorsResult.status === 'fulfilled') {
+                const donators = donatorsResult.value.docs.map(doc => {
                     const d = doc.data();
                     return {
                         id: doc.id,
@@ -80,46 +114,147 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                         approvalStatus: d.approvalStatus || 'pending',
                         photoURL: d.photoURL,
                         showDonationAmount: d.showAmount !== false,
-                        timestamp: d.lastActiveAt,
                         currentStreak: d.currentStreak || 0,
                         showStreak: d.showStreak !== false
                     } as Supporter;
-                })
-                : [];
-
-            if (donatorsResult.status === 'rejected') {
-                console.error("Failed to fetch donators:", donatorsResult.reason);
+                });
+                setTopDonators(donators);
             }
 
-            const streaksData = streaksResult.status === 'fulfilled'
-                ? streaksResult.value.docs.map(doc => {
-                    const d = doc.data();
-                    return {
-                        id: doc.id,
-                        displayName: d.leaderboardName || 'Anonymous',
-                        currentStreak: d.currentStreak || 0,
-                        photoURL: d.photoURL
-                    } as StreakLeader;
-                })
-                : [];
+            // Process Streaks
+            if (streaksResult.status === 'fulfilled') {
+                const snapshot = streaksResult.value;
+                const leaders = snapshot.docs.map((doc, index) => ({
+                    id: doc.id,
+                    displayName: doc.data().leaderboardName || 'Anonymous',
+                    currentStreak: doc.data().currentStreak || 0,
+                    photoURL: doc.data().photoURL,
+                    rank: index + 1,
+                    isCurrentUser: currentUserData?.email === doc.data().email // Best effort match if ID not available in stats
+                } as StreakLeader));
 
-            if (streaksResult.status === 'rejected') {
-                console.error("Failed to fetch streaks:", streaksResult.reason);
+                setStreakLeaders(leaders);
+                setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+                if (snapshot.docs.length < ITEMS_PER_PAGE) setHasMore(false);
             }
 
-            setSupporters(donatorsData);
-            setStreakLeaders(streaksData);
         } catch (error) {
-            console.error("Fetch Leaderboard Error:", error);
+            console.error("Fetch Error:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const calculateMyRank = async (myStreak: number) => {
+        try {
+            const usersRef = collection(db, 'users');
+            // Count users with strictly better streak
+            const q = query(
+                usersRef,
+                where('displayOnLeaderboard', '==', true),
+                where('showStreak', '==', true),
+                where('currentStreak', '>', myStreak)
+            );
+            const snapshot = await getCountFromServer(q);
+            setMyRank(snapshot.data().count + 1);
+        } catch (e) {
+            console.error("Rank calculation error:", e);
+        }
+    };
+
+    const loadMoreStreaks = async () => {
+        if (!hasMore || loadingMore || !lastDoc) return;
+        setLoadingMore(true);
+
+        try {
+            const q = query(
+                collection(db, 'users'),
+                where('displayOnLeaderboard', '==', true),
+                where('showStreak', '==', true),
+                where('currentStreak', '>=', 1),
+                orderBy('currentStreak', 'desc'),
+                startAfter(lastDoc),
+                limit(ITEMS_PER_PAGE)
+            );
+
+            const snapshot = await getDocs(q);
+            if (snapshot.empty) {
+                setHasMore(false);
+            } else {
+                const startRank = streakLeaders.length + 1;
+                const newLeaders = snapshot.docs.map((doc, index) => ({
+                    id: doc.id,
+                    displayName: doc.data().leaderboardName || 'Anonymous',
+                    currentStreak: doc.data().currentStreak || 0,
+                    photoURL: doc.data().photoURL,
+                    rank: startRank + index,
+                    isCurrentUser: currentUserData?.email === doc.data().email
+                } as StreakLeader));
+
+                setStreakLeaders(prev => [...prev, ...newLeaders]);
+                setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+                if (snapshot.docs.length < ITEMS_PER_PAGE) setHasMore(false);
+            }
+        } catch (error) {
+            console.error("Load more error:", error);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
+    const jumpToMyRank = async () => {
+        if (!myRank || !currentUserData) return;
+        setLoading(true);
+        // Reset list and fetch starting at my streak
+        // Note: Sort is DESC, so startAt(myStreak) means start at users with that streak
+        try {
+            const q = query(
+                collection(db, 'users'),
+                where('displayOnLeaderboard', '==', true),
+                where('showStreak', '==', true),
+                where('currentStreak', '>=', 1),
+                orderBy('currentStreak', 'desc'),
+                startAt(currentUserData.currentStreak),
+                limit(ITEMS_PER_PAGE)
+            );
+            const snapshot = await getDocs(q);
+
+            // Note: The rank calculation for this page is tricky because we jumped.
+            // We use 'myRank' as the anchor. If I am the first in this batch (best case), rank is 'myRank'.
+            // Actually, startAt(streak) includes everyone WITH that streak.
+            // So the first person in this list has streak == myStreak (or better if simple startAt).
+            // Actually 'startAt' includes items equal to the value.
+            // But since it's DESC, larger values come first.
+            // So startAt(10) starts at 10.
+            // Users with 11 are skipped.
+            // So the rank of the first item is roughly 'myRank' (minus ties optimization).
+            // We'll approximate rank starts at myRank for the first in batch (assuming I'm near top of my streak group).
+            // More accurately: The count of users > myStreak is (myRank - 1).
+            // So the first user in this list (streak == myStreak) is practically at rank (myRank).
+
+            const leaders = snapshot.docs.map((doc) => ({
+                id: doc.id,
+                displayName: doc.data().leaderboardName || 'Anonymous',
+                currentStreak: doc.data().currentStreak || 0,
+                photoURL: doc.data().photoURL,
+                rank: "?", // Visual indicator that we jumped
+                isCurrentUser: currentUserData.email === doc.data().email
+            } as any));
+
+            setStreakLeaders(leaders);
+            setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+            setHasMore(true); // Can load more downwards
+
+            // Scroll to top of list container?
+            // document.getElementById('leaderboard-list')?.scrollTo(0,0);
+        } catch (e) {
+            console.error("Jump error:", e);
         } finally {
             setLoading(false);
         }
     };
 
     if (!isOpen) return null;
-
-    const top3 = supporters.slice(0, 3);
-    const others = supporters.slice(3);
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -145,7 +280,7 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                         </div>
                         <div>
                             <h2 className="text-xl font-bold text-white tracking-tight">Proxle Leaderboard</h2>
-                            <p className="text-xs text-white/50">Top Supporters & Active Players</p>
+                            <p className="text-xs text-white/50">Top Supporters & Active Streaks</p>
                         </div>
                     </div>
                     <button
@@ -157,7 +292,7 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                <div id="leaderboard-list" className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-12 gap-4">
                             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -166,72 +301,76 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                     ) : (
                         <>
                             {/* Top 3 Supporters Billboard */}
-                            {top3.length > 0 && (
+                            {topDonators.length > 0 && (
                                 <div className="space-y-4">
                                     <h3 className="text-[10px] uppercase tracking-widest text-white/30 font-bold px-2 flex items-center gap-2">
                                         <Heart size={12} className="text-cyan-400" />
                                         Top Supporters
                                     </h3>
-                                    {top3.map((s, i) => (
+                                    {topDonators.map((s, i) => (
                                         <BillboardItem key={s.id} supporter={s} rank={i + 1} />
                                     ))}
                                 </div>
                             )}
 
-                            {/* Streak Leaders Section */}
-                            {streakLeaders.length > 0 && (
-                                <div className="space-y-3">
-                                    <h3 className="text-[10px] uppercase tracking-widest text-white/30 font-bold px-2 flex items-center gap-2">
-                                        <Flame size={12} className="text-orange-400" />
-                                        Streak Leaders
-                                    </h3>
-                                    <div className="space-y-2">
-                                        {streakLeaders.map((leader, i) => (
-                                            <StreakLeaderRow key={leader.id} leader={leader} rank={i + 1} />
-                                        ))}
+                            {/* My Rank Banner */}
+                            {myRank && currentUserData && (
+                                <button
+                                    onClick={jumpToMyRank}
+                                    className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-violet-600/20 to-indigo-600/20 hover:from-violet-600/30 hover:to-indigo-600/30 border border-violet-500/30 rounded-xl transition-all group"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center text-sm font-bold text-violet-300">
+                                            #{myRank}
+                                        </div>
+                                        <div className="text-left">
+                                            <div className="text-sm font-bold text-white">Your Rank</div>
+                                            <div className="text-[10px] text-white/50">Click to scroll to your position</div>
+                                        </div>
                                     </div>
-                                </div>
+                                    <ChevronDown className="text-violet-400 group-hover:translate-y-1 transition-transform" size={16} />
+                                </button>
                             )}
 
-                            {/* Other Supporters List */}
-                            {others.length > 0 && (
+                            {/* Streak Leaders Section */}
+                            <div className="space-y-3">
+                                <h3 className="text-[10px] uppercase tracking-widest text-white/30 font-bold px-2 flex items-center gap-2">
+                                    <Flame size={12} className="text-orange-400" />
+                                    Streak Leaderboard
+                                </h3>
                                 <div className="space-y-2">
-                                    <h3 className="text-[10px] uppercase tracking-widest text-white/30 font-bold px-2">Other Supporters</h3>
-                                    {others.map((s, i) => (
-                                        <SupporterRow key={s.id} supporter={s} rank={i + 4} />
+                                    {streakLeaders.map((leader, i) => (
+                                        <div key={leader.id} ref={i === streakLeaders.length - 1 ? lastElementRef : null}>
+                                            <StreakLeaderRow leader={leader} />
+                                        </div>
                                     ))}
+                                    {streakLeaders.length === 0 && (
+                                        <div className="text-center py-8 text-white/30 text-sm">
+                                            No explicit streaks yet. Start playing!
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-
-                            {/* Empty State */}
-                            {supporters.length === 0 && streakLeaders.length === 0 && (
-                                <div className="text-center py-12">
-                                    <Heart className="mx-auto text-white/10 mb-4" size={48} />
-                                    <p className="text-white/40">Be the first to support Proxle!</p>
-                                </div>
-                            )}
+                                {loadingMore && (
+                                    <div className="flex justify-center py-4">
+                                        <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+                                    </div>
+                                )}
+                            </div>
                         </>
                     )}
                 </div>
 
                 {/* Footer / CTA */}
-                <div className="p-6 bg-white/5 border-t border-white/10">
-                    <div className="flex flex-col gap-4">
-                        <div className="flex items-center gap-3 text-xs text-white/40 bg-black/20 p-3 rounded-xl border border-white/5">
-                            <Trophy size={14} className="text-yellow-400 shrink-0" />
-                            <p>Support Proxle to appear on the leaderboard and unlock a custom message!</p>
-                        </div>
-
-                        <a
-                            href="https://ko-fi.com/skyboundmi"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all active:scale-[0.98]"
-                        >
-                            <Heart size={20} fill="currentColor" />
-                            Support Proxle & Join the Leaderboard
-                        </a>
-                    </div>
+                <div className="p-6 bg-white/5 border-t border-white/10 shrink-0">
+                    <a
+                        href="https://ko-fi.com/skyboundmi"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all active:scale-[0.98]"
+                    >
+                        <Heart size={20} fill="currentColor" />
+                        Support Proxle & Join the Leaderboard
+                    </a>
                 </div>
             </motion.div>
         </div>
@@ -274,7 +413,7 @@ function BillboardItem({ supporter, rank }: { supporter: Supporter, rank: number
                         </div>
                     </div>
                 </div>
-                <div>
+                <div className="flex-1 px-3">
                     <div className="font-bold text-white flex items-center gap-2">
                         {supporter.displayName}
                         {supporter.showStreak && supporter.currentStreak > 0 && (
@@ -290,28 +429,31 @@ function BillboardItem({ supporter, rank }: { supporter: Supporter, rank: number
                 </div>
             </div>
             {supporter.message && supporter.approvalStatus === 'approved' && (
-                <div className="mt-3 p-3 bg-white/5 rounded-xl border border-white/5 relative z-10">
+                <div className="mt-2 p-3 bg-white/5 rounded-xl border border-white/5 relative z-10">
                     <MessageSquare size={12} className="absolute -top-1.5 -right-1.5 text-cyan-400/50" />
                     <p className="text-sm italic text-white/80 leading-relaxed">
                         "{supporter.message}"
                     </p>
                 </div>
             )}
-
-            {/* Background rank number */}
-            <div className="absolute -right-4 -bottom-8 text-8xl font-black text-white/5 pointer-events-none italic">
-                {rank}
-            </div>
         </div>
     );
 }
 
-function StreakLeaderRow({ leader, rank }: { leader: StreakLeader, rank: number }) {
+function StreakLeaderRow({ leader }: { leader: StreakLeader }) {
     return (
-        <div className="flex items-center justify-between p-3 hover:bg-white/5 rounded-xl transition-colors border border-transparent hover:border-white/5 group">
+        <div className={clsx(
+            "flex items-center justify-between p-3 rounded-xl transition-colors border group",
+            leader.isCurrentUser
+                ? "bg-violet-500/20 border-violet-500/30"
+                : "hover:bg-white/5 border-transparent hover:border-white/5"
+        )}>
             <div className="flex items-center gap-3">
-                <span className="w-6 text-[10px] font-mono font-bold text-white/20 group-hover:text-white/40 transition-colors">
-                    #{rank}
+                <span className={clsx(
+                    "w-8 text-center text-sm font-mono font-bold transition-colors",
+                    (typeof leader.rank === 'number' && leader.rank <= 3) ? "text-yellow-400" : "text-white/20 group-hover:text-white/40"
+                )}>
+                    {leader.rank === '?' ? '-' : `#${leader.rank}`}
                 </span>
                 <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-xs">
                     {leader.photoURL ? (
@@ -320,45 +462,14 @@ function StreakLeaderRow({ leader, rank }: { leader: StreakLeader, rank: number 
                         '✨'
                     )}
                 </div>
-                <span className="font-medium text-sm text-white/80">
-                    {leader.displayName}
+                <span className={clsx("font-medium text-sm", leader.isCurrentUser ? "text-violet-200" : "text-white/80")}>
+                    {leader.displayName} {leader.isCurrentUser && "(You)"}
                 </span>
             </div>
             <div className="flex items-center gap-1 px-2 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full">
                 <span className="text-orange-400">🔥</span>
                 <span className="text-sm font-bold text-orange-300">{leader.currentStreak}</span>
                 <span className="text-[10px] text-orange-300/60">days</span>
-            </div>
-        </div>
-    );
-}
-
-function SupporterRow({ supporter, rank }: { supporter: Supporter, rank: number }) {
-    return (
-        <div className="flex items-center justify-between p-3 hover:bg-white/5 rounded-xl transition-colors border border-transparent hover:border-white/5 group">
-            <div className="flex items-center gap-3">
-                <span className="w-6 text-[10px] font-mono font-bold text-white/20 group-hover:text-white/40 transition-colors">
-                    #{rank}
-                </span>
-                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-xs grayscale">
-                    {supporter.photoURL ? (
-                        <img src={supporter.photoURL} className="w-full h-full rounded-full" alt="" />
-                    ) : (
-                        '✨'
-                    )}
-                </div>
-                <span className="font-medium text-sm text-white/80 flex items-center gap-2">
-                    {supporter.displayName}
-                    {supporter.showStreak && supporter.currentStreak > 0 && (
-                        <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white/5 rounded-full">
-                            <span className="text-[9px] text-orange-400">🔥</span>
-                            <span className="text-[9px] font-bold text-white/60">{supporter.currentStreak}</span>
-                        </div>
-                    )}
-                </span>
-            </div>
-            <div className="text-sm font-mono font-bold text-white/40">
-                {supporter.showDonationAmount ? `$${supporter.amount.toFixed(0)}` : '💎'}
             </div>
         </div>
     );

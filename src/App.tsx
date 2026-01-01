@@ -538,6 +538,7 @@ function App() {
           <LeaderboardModal
             isOpen={showLeaderboard}
             onClose={() => setShowLeaderboard(false)}
+            currentUserData={userData}
           />
         )}
       </AnimatePresence>
