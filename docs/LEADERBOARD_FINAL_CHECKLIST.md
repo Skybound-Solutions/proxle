@@ -320,10 +320,11 @@ firebase deploy --only hosting
 - Manually trigger by updating user doc
 
 ### If Migration Fails:
-- Check service-account-key.json exists
-- Verify Firebase credentials are correct
-- Run script with --dry-run flag first
+- Verify credentials:
+  - Option A: Place `service-account-key.json` in `functions/` folder
+  - Option B: Run `gcloud auth application-default login` for ADC
 - Check batch size limits (500 ops)
+- Run with debug logging if needed
 
 ---
 

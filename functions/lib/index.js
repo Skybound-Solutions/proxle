@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.kofiWebhook = exports.onUserUpdate = exports.evaluateGuess = void 0;
+exports.syncLeaderboard = exports.kofiWebhook = exports.onUserUpdate = exports.checkLeaderboardName = exports.evaluateGuess = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const generative_ai_1 = require("@google/generative-ai");
@@ -115,10 +115,89 @@ Example: {"isValidWord": true, "similarity": 45, "hint": "Flight"}`;
         };
     }
 });
+/**
+ * AI-powered content moderation for leaderboard display names
+ * Checks for inappropriate content including profanity, hate speech,
+ * personal information, spam, etc.
+ */
+exports.checkLeaderboardName = (0, https_1.onCall)({
+    cors: true,
+    secrets: [geminiApiKey],
+    memory: "256MiB",
+    timeoutSeconds: 30
+}, async (request) => {
+    logger.info("Checking leaderboard name", { name: request.data.name });
+    // Require authentication
+    if (!request.auth) {
+        throw new Error("Authentication required");
+    }
+    const { name } = request.data;
+    // Basic validation
+    if (!name || typeof name !== 'string') {
+        return { approved: false, reason: "Invalid name format" };
+    }
+    if (name.trim().length === 0) {
+        return { approved: false, reason: "Name cannot be empty" };
+    }
+    // "Anonymous" is always approved
+    if (name.toLowerCase() === 'anonymous') {
+        return { approved: true };
+    }
+    // Check length
+    if (name.length > 30) {
+        return { approved: false, reason: "Name too long (max 30 characters)" };
+    }
+    // Initialize AI with the secret
+    const genAI = new generative_ai_1.GoogleGenerativeAI(geminiApiKey.value());
+    try {
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const prompt = `You are a content moderator for a family-friendly word game leaderboard. 
+Evaluate if the following display name is appropriate for public display.
+
+Display Name: "${name}"
+
+REJECT if it contains:
+- Profanity or offensive language
+- Hate speech or discriminatory content
+- Sexual, violent, or disturbing content
+- Personal information (phone numbers, addresses, email addresses, social security numbers)
+- Spam or advertising (URLs, promotional content)
+- Impersonation of public figures, brands, or staff
+- Excessive special characters or leetspeak used to bypass filters
+- References to drugs, alcohol, or illegal activities
+
+APPROVE if:
+- It's a reasonable personal name, nickname, or username
+- It's creative and appropriate
+- It doesn't violate any of the above rules
+
+Respond with ONLY one word: "APPROVED" or "REJECTED"`;
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text().trim().toUpperCase();
+        const isApproved = text.includes("APPROVED");
+        logger.info("Moderation result", { name, decision: isApproved ? "APPROVED" : "REJECTED", rawResponse: text });
+        return {
+            approved: isApproved,
+            decision: isApproved ? "APPROVED" : "REJECTED"
+        };
+    }
+    catch (error) {
+        logger.error("AI Moderation Error", error);
+        // On error, default to requiring manual review (reject)
+        return {
+            approved: false,
+            reason: "Unable to verify name appropriateness. Please try again or contact support."
+        };
+    }
+});
 // User Notifications
 var notifications_1 = require("./notifications");
 Object.defineProperty(exports, "onUserUpdate", { enumerable: true, get: function () { return notifications_1.onUserUpdate; } });
 // Ko-fi Integration
 var kofi_1 = require("./kofi");
 Object.defineProperty(exports, "kofiWebhook", { enumerable: true, get: function () { return kofi_1.kofiWebhook; } });
+// Leaderboard Sync
+var syncLeaderboard_1 = require("./syncLeaderboard");
+Object.defineProperty(exports, "syncLeaderboard", { enumerable: true, get: function () { return syncLeaderboard_1.syncLeaderboard; } });
 //# sourceMappingURL=index.js.map

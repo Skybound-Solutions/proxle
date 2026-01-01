@@ -8,8 +8,7 @@ import {
     GoogleAuthProvider,
     signInWithPopup,
     signInWithRedirect,
-    getRedirectResult,
-    type AuthError as FirebaseAuthError
+    getRedirectResult
 } from 'firebase/auth';
 import { getBestAuthMethod, isPrivateBrowsing, getBrowserDisplayName } from './browserDetection';
 
