@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Users, Activity, Trash2, Heart, Check, X as XIcon, MessageSquare, Search, RefreshCw, Shield, Edit2, FileJson, ExternalLink } from 'lucide-react';
+import { Users, Activity, Trash2, Heart, Check, X as XIcon, MessageSquare, Search, RefreshCw, Shield, Edit2, FileJson, ExternalLink, Eye, EyeOff } from 'lucide-react';
 import { doc, deleteDoc, updateDoc, serverTimestamp, where } from 'firebase/firestore';
 
 const ADMIN_EMAILS = ['banklam@skyboundmi.com', 'proxle@skyboundmi.com'];
@@ -22,6 +22,7 @@ export default function AdminDashboard() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [editingUser, setEditingUser] = useState<any>(null);
+    const [donators, setDonators] = useState<any[]>([]);
 
     // Security Check
     useEffect(() => {
@@ -58,6 +59,18 @@ export default function AdminDashboard() {
             snapshotPending.forEach(doc => {
                 pending.push({ id: doc.id, ...doc.data() });
             });
+
+            // Fetch All Donators
+            const qDonators = query(usersRef, orderBy('donations.total', 'desc'), limit(100));
+            const snapshotDonators = await getDocs(qDonators);
+            const donatorsList: any[] = [];
+            snapshotDonators.forEach(doc => {
+                const d = doc.data();
+                if (d.donations?.total > 0) {
+                    donatorsList.push({ id: doc.id, ...d });
+                }
+            });
+            setDonators(donatorsList);
 
             setStats({
                 totalUsers: snapshotRecent.size, // Recently active count
@@ -184,6 +197,21 @@ export default function AdminDashboard() {
         } catch (error) {
             console.error("Credit Error:", error);
             alert("Failed to credit amount.");
+        }
+    };
+
+    const handleToggleLeaderboard = async (userId: string, currentStatus: boolean | undefined) => {
+        try {
+            const userRef = doc(db, 'users', userId);
+            await updateDoc(userRef, {
+                displayOnLeaderboard: !currentStatus
+            });
+            // Optimistic update
+            setDonators(prev => prev.map(u => u.id === userId ? { ...u, displayOnLeaderboard: !currentStatus } : u));
+            fetchAdminData();
+        } catch (error) {
+            console.error("Toggle Error:", error);
+            alert("Failed to toggle status.");
         }
     };
 
@@ -367,6 +395,94 @@ export default function AdminDashboard() {
                         </div>
                     </div>
                 )}
+
+                {/* Donator Management Section */}
+                <div className="glass-panel rounded-2xl p-6 border border-cyan-500/30 mb-8">
+                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-cyan-400">
+                        <Heart size={20} />
+                        Donator Management
+                    </h2>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead>
+                                <tr className="border-b border-white/10 text-white/50">
+                                    <th className="pb-4">Rank</th>
+                                    <th className="pb-4">Donator</th>
+                                    <th className="pb-4">Amount</th>
+                                    <th className="pb-4">Message & Status</th>
+                                    <th className="pb-4 text-center">Placement</th>
+                                    <th className="pb-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {donators.map((u, i) => (
+                                    <tr key={u.id} className="hover:bg-white/5 transition-colors">
+                                        <td className="py-4 font-mono font-bold text-white/50">#{i + 1}</td>
+                                        <td className="py-4 flex items-center gap-3">
+                                            {u.photoURL ? (
+                                                <img src={u.photoURL} className="w-8 h-8 rounded-full" />
+                                            ) : (
+                                                <div className="w-8 h-8 rounded-full bg-white/10" />
+                                            )}
+                                            <div>
+                                                <div className="font-bold text-white">{u.displayName || 'Anonymous'}</div>
+                                                <div className="text-xs text-white/40">{u.lederboardName || u.email}</div>
+                                            </div>
+                                        </td>
+                                        <td className="py-4 font-mono text-green-400 font-bold">
+                                            ${u.donations?.total?.toFixed(2)}
+                                        </td>
+                                        <td className="py-4 max-w-xs">
+                                            {u.message ? (
+                                                <div className="space-y-1">
+                                                    <div className="text-sm italic text-white/80">"{u.message}"</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${u.messageApprovalStatus === 'approved' ? 'bg-green-500/20 text-green-400' :
+                                                            u.messageApprovalStatus === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                                                                'bg-yellow-500/20 text-yellow-400'
+                                                            }`}>
+                                                            {u.messageApprovalStatus || 'pending'}
+                                                        </span>
+                                                        <div className="flex gap-1">
+                                                            <button onClick={() => handleApproveMessage(u.id, 'approved')} className="p-1 hover:text-green-400"><Check size={14} /></button>
+                                                            <button onClick={() => handleApproveMessage(u.id, 'rejected')} className="p-1 hover:text-red-400"><XIcon size={14} /></button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <span className="text-white/20 italic">- No message -</span>
+                                            )}
+                                        </td>
+                                        <td className="py-4 text-center">
+                                            <button
+                                                onClick={() => handleToggleLeaderboard(u.id, u.displayOnLeaderboard)}
+                                                className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all mx-auto ${u.displayOnLeaderboard !== false
+                                                    ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30'
+                                                    : 'bg-white/5 text-white/40 hover:bg-white/10'
+                                                    }`}
+                                            >
+                                                {u.displayOnLeaderboard !== false ? (
+                                                    <><Eye size={14} /> VISIBLE</>
+                                                ) : (
+                                                    <><EyeOff size={14} /> HIDDEN</>
+                                                )}
+                                            </button>
+                                        </td>
+                                        <td className="py-4 text-right">
+                                            <button
+                                                onClick={() => setEditingUser(u)}
+                                                className="p-2 hover:text-cyan-400 transition-colors"
+                                                title="Edit User"
+                                            >
+                                                <Edit2 size={16} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
 
                 {/* User Table */}
                 <div className="glass-panel rounded-2xl p-6 border border-white/10 text-white">

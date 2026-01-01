@@ -38,12 +38,24 @@ export const kofiWebhook = onRequest({
                 const userDoc = q.docs[0];
                 const userData = userDoc.data();
 
-                await userDoc.ref.update({
+                const isPublic = payload.is_public === true || payload.is_public === "1" || payload.is_public === 1;
+                const newMessage = payload.message || null;
+
+                const updateData: any = {
                     'donations.total': (userData.donations?.total || 0) + amount,
                     'donations.count': (userData.donations?.count || 0) + 1,
                     'lastDonationAt': new Date(),
-                    'isSupporter': true
-                });
+                    'isSupporter': true,
+                    'isAnonymous': !isPublic,
+                    'leaderboardName': payload.from_name || userData.displayName || "Supporter"
+                };
+
+                if (newMessage) {
+                    updateData['message'] = newMessage;
+                    updateData['messageApprovalStatus'] = 'pending';
+                }
+
+                await userDoc.ref.update(updateData);
                 logger.info(`Successfully credited ${email} with $${amount}`);
             } else {
                 logger.warn(`Donation received from ${email} but no matching user found in Firestore.`);

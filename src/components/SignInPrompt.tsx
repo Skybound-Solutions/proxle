@@ -1,11 +1,13 @@
 import { motion } from 'framer-motion';
 
 interface SignInPromptProps {
-    onSignIn: () => void;
+    onSignIn: (forceRedirect?: boolean) => void;
     onDismiss: () => void;
+    authError?: string | null;
+    isRetrying?: boolean;
 }
 
-export default function SignInPrompt({ onSignIn, onDismiss }: SignInPromptProps) {
+export default function SignInPrompt({ onSignIn, onDismiss, authError, isRetrying }: SignInPromptProps) {
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -19,10 +21,27 @@ export default function SignInPrompt({ onSignIn, onDismiss }: SignInPromptProps)
                     Sign in with Google to track your stats, streaks, and achievements across all devices!
                 </p>
 
+                {/* Error Display */}
+                {authError && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 mb-4 text-left"
+                    >
+                        <p className="text-red-400 text-sm">{authError}</p>
+                        {isRetrying && (
+                            <p className="text-red-300 text-xs mt-1 animate-pulse">
+                                Retrying with alternative method...
+                            </p>
+                        )}
+                    </motion.div>
+                )}
+
                 <div className="space-y-3">
                     <button
-                        onClick={onSignIn}
-                        className="w-full bg-white text-gray-900 font-bold py-3 px-4 rounded-lg hover:bg-gray-100 transition-all duration-200 active:scale-95 flex items-center justify-center gap-3 shadow-lg group"
+                        onClick={() => onSignIn()}
+                        disabled={isRetrying}
+                        className="w-full bg-white text-gray-900 font-bold py-3 px-4 rounded-lg hover:bg-gray-100 transition-all duration-200 active:scale-95 flex items-center justify-center gap-3 shadow-lg group disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <svg width="18" height="18" viewBox="0 0 18 18" className="group-hover:scale-110 transition-transform duration-200">
                             <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z" />
@@ -32,6 +51,16 @@ export default function SignInPrompt({ onSignIn, onDismiss }: SignInPromptProps)
                         </svg>
                         Sign in with Google
                     </button>
+
+                    {/* Alternative Sign-In Method */}
+                    {authError && !isRetrying && (
+                        <button
+                            onClick={() => onSignIn(true)}
+                            className="w-full text-white/60 hover:text-white/80 text-xs py-2 transition-colors hover:underline"
+                        >
+                            Try Alternative Sign-In Method →
+                        </button>
+                    )}
 
                     <button
                         onClick={onDismiss}

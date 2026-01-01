@@ -38,7 +38,7 @@ function App() {
   const [isIOS, setIsIOS] = useState(false);
 
   // Auth & New Features
-  const { user, userData, loading, signInWithGoogle, signOutUser, updateStats, updateUserProfile } = useAuth();
+  const { user, userData, loading, signInWithGoogle, signOutUser, updateStats, updateUserProfile, authError, isRetrying, clearAuthError } = useAuth();
   const [showStats, setShowStats] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
@@ -406,7 +406,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans flex flex-col items-center overflow-hidden relative selection:bg-primary selection:text-primary-foreground">
+    <div className="h-screen bg-background text-foreground font-sans flex flex-col items-center overflow-hidden relative selection:bg-primary selection:text-primary-foreground">
 
       {/* Background Ambience */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -415,7 +415,7 @@ function App() {
       </div>
 
       {/* Header */}
-      <header className="w-full max-w-md p-4 flex items-center justify-between z-[40] glass-panel mb-6 mt-4 rounded-2xl mx-4">
+      <header className="w-full max-w-md p-3 flex items-center justify-between z-[40] glass-panel mb-2 mt-2 rounded-2xl mx-4">
         <h1 className="text-xl font-black tracking-tighter bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500 bg-clip-text text-transparent shrink-0">
           PROXLE
         </h1>
@@ -444,12 +444,23 @@ function App() {
               onViewAdmin={() => navigate('/admin')}
             />
           ) : (
-            <button
-              onClick={signInWithGoogle}
-              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-full text-xs font-bold transition-all duration-200 active:scale-95 border border-white/10"
-            >
-              Sign In
-            </button>
+            <div className="flex flex-col items-end gap-1">
+              <button
+                onClick={() => signInWithGoogle()}
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-full text-xs font-bold transition-all duration-200 active:scale-95 border border-white/10"
+              >
+                Sign In
+              </button>
+              {authError && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-[10px] text-red-400 max-w-[120px] text-right"
+                >
+                  {authError}
+                </motion.div>
+              )}
+            </div>
           )}
         </div>
       </header>
@@ -471,15 +482,21 @@ function App() {
               onClick={(e) => e.stopPropagation()}
             >
               <SignInPrompt
-                onSignIn={async () => {
+                onSignIn={async (forceRedirect = false) => {
                   try {
-                    await signInWithGoogle();
+                    await signInWithGoogle(forceRedirect);
                     setShowSignInPrompt(false);
                   } catch (e) {
                     console.error("Sign in error:", e);
+                    // Error is now displayed in the component via authError state
                   }
                 }}
-                onDismiss={() => setShowSignInPrompt(false)}
+                onDismiss={() => {
+                  setShowSignInPrompt(false);
+                  clearAuthError();
+                }}
+                authError={authError}
+                isRetrying={isRetrying}
               />
             </motion.div>
           </motion.div>
@@ -542,35 +559,40 @@ function App() {
               </div>
 
               <div className="space-y-4 text-sm text-white/80">
-                {/* Install App Section - Only show if promotable or iOS */}
-                {(installPrompt || isIOS) && (
+                {/* Install App Section */}
+                {installPrompt && (
                   <div className="mb-6 p-4 bg-gradient-to-br from-primary/10 to-blue-500/10 border border-primary/20 rounded-xl">
                     <h3 className="text-white font-bold text-base mb-2 flex items-center gap-2">
                       <Download size={18} className="text-primary" />
                       Install App
                     </h3>
+                    <div className="space-y-2">
+                      <p className="text-xs text-white/70">
+                        Install Proxle for a fullscreen, native app experience!
+                      </p>
+                      <button
+                        onClick={handleInstallClick}
+                        className="w-full py-2 bg-primary text-primary-foreground font-bold rounded-lg text-xs shadow-lg shadow-primary/20 active:scale-95 transition-all"
+                      >
+                        Add to Home Screen
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-                    {installPrompt ? (
-                      <div className="space-y-2">
-                        <p className="text-xs text-white/70">
-                          Install Proxle for a fullscreen, native app experience!
-                        </p>
-                        <button
-                          onClick={handleInstallClick}
-                          className="w-full py-2 bg-primary text-primary-foreground font-bold rounded-lg text-xs shadow-lg shadow-primary/20 active:scale-95 transition-all"
-                        >
-                          Add to Home Screen
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-white/70 space-y-2">
-                        <p>To install on iOS:</p>
-                        <ol className="list-decimal list-inside space-y-1 ml-1 opacity-80">
-                          <li>Tap the <Share2 size={12} className="inline mx-1" /> Share button below</li>
-                          <li>Scroll down and select <span className="text-white font-semibold">"Add to Home Screen"</span></li>
-                        </ol>
-                      </div>
-                    )}
+                {isIOS && !installPrompt && (
+                  <div className="mb-6 p-4 bg-gradient-to-br from-primary/10 to-blue-500/10 border border-primary/20 rounded-xl">
+                    <h3 className="text-white font-bold text-base mb-2 flex items-center gap-2">
+                      <Download size={18} className="text-primary" />
+                      Install App
+                    </h3>
+                    <div className="text-xs text-white/70 space-y-2">
+                      <p>To install on iOS:</p>
+                      <ol className="list-decimal list-inside space-y-1 ml-1 opacity-80">
+                        <li>Tap the <Share2 size={12} className="inline mx-1" /> Share button in your browser</li>
+                        <li>Scroll down and select <span className="text-white font-semibold">"Add to Home Screen"</span></li>
+                      </ol>
+                    </div>
                   </div>
                 )}
 
@@ -586,7 +608,7 @@ function App() {
                   <p>Guess a word to get two types of feedback:</p>
                   <ul className="list-disc list-inside space-y-1 ml-1 opacity-90">
                     <li><strong className="text-green-400">Spelling:</strong> Typical green/yellow colors for letter positions.</li>
-                    <li><strong className="text-primary">Meaning:</strong> A score (0-100%) showing how close your word's meaning is to the answer.</li>
+                    <li><strong className="text-primary">Meaning:</strong> A score (0-100%) showing semantic closeness.</li>
                   </ul>
                 </div>
 
@@ -617,20 +639,24 @@ function App() {
                 <div className="space-y-2">
                   <h3 className="text-white font-bold text-base">🧠 Meaning Hints</h3>
                   <p>
-                    Every guess gives you a <strong className="text-primary">Context Score</strong>. The higher the percentage, the closer the meaning!
+                    Every guess gives you a <strong className="text-primary">Context Score</strong>.
                   </p>
-                  <div className="glass-card p-3 rounded-lg border border-primary/20">
-                    <div className="text-xs text-white/50 mb-1">Example: Target is "QUEEN"</div>
+                  <ul className="list-disc list-inside space-y-1 text-sm opacity-90">
+                    <li>High Score: You are conceptually close!</li>
+                    <li>Low Score: You get a <strong className="text-yellow-400">1-word hint</strong> describing a shared attribute (e.g., shape, material, action).</li>
+                  </ul>
+                  <div className="glass-card p-3 rounded-lg border border-primary/20 mt-2">
+                    <div className="text-xs text-white/50 mb-1">Example: Target is "PLANE"</div>
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-bold text-white">KING</span>
+                        <span className="font-bold text-white">EAGLE</span>
                         <div className="flex gap-2 mt-1">
-                          <span className="text-[10px] px-2 py-0.5 bg-primary/20 text-primary border border-primary/30 rounded-full">
-                            royalty
+                          <span className="text-[10px] px-2 py-0.5 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-full font-bold">
+                            Hint: Flight
                           </span>
                         </div>
                       </div>
-                      <span className="text-2xl font-black text-yellow-400">85%</span>
+                      <span className="text-xl font-black text-white/40">45%</span>
                     </div>
                   </div>
                 </div>
@@ -789,10 +815,10 @@ function App() {
       </AnimatePresence>
 
       {/* Game Board */}
-      <main className="flex-1 w-full max-w-md px-4 flex flex-col z-10 items-stretch">
+      <main className="flex-shrink w-full max-w-md px-4 flex flex-col z-10 items-stretch overflow-hidden">
 
         {/* Active Input Area */}
-        <div className="mb-8 relative">
+        <div className="mb-4 relative">
           <div className="flex justify-between items-center mb-2 px-1">
             <span className="text-xs font-medium text-white/40 uppercase tracking-widest">Guess the word</span>
           </div>
@@ -886,8 +912,7 @@ function App() {
           )}
         </div>
 
-
-        <div className="flex-1 overflow-y-auto max-h-[30vh] space-y-1.5 pr-2 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto max-h-[20vh] space-y-1.5 pr-2 custom-scrollbar">
           {guesses.map((g, i) => (
             <div key={i} className="bg-white/5 rounded-lg border border-white/5 p-2">
               <div className="flex items-center gap-3">
@@ -946,12 +971,12 @@ function App() {
       </main>
 
       {/* Keyboard */}
-      <footer className="w-full max-w-md p-2 z-20 bg-background/90 backdrop-blur-md border-t border-white/5 pb-8 pt-4">
+      <footer className="w-full max-w-md p-2 z-20 bg-background/90 backdrop-blur-md border-t border-white/5 pb-4 pt-2">
         <div className="flex flex-col gap-2">
           {["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"].map((row, rowIdx) => (
             <div key={rowIdx} className="flex justify-center gap-1.5">
               {rowIdx === 2 && (
-                <button onClick={submitGuess} disabled={isLoading} className="h-12 px-3 bg-primary text-primary-foreground font-bold rounded-lg text-sm flex items-center justify-center shadow-lg shadow-primary/20 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-wait">
+                <button onClick={submitGuess} disabled={isLoading} className="h-10 px-3 bg-primary text-primary-foreground font-bold rounded-lg text-sm flex items-center justify-center shadow-lg shadow-primary/20 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-wait">
                   {isLoading ? "..." : "ENTER"}
                 </button>
               )}
@@ -963,7 +988,7 @@ function App() {
                     key={char}
                     onClick={() => handleVirtualInput(char)}
                     className={cn(
-                      "h-12 w-8 sm:w-10 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center justify-center relative overflow-hidden group",
+                      "h-10 w-8 sm:w-10 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center justify-center relative overflow-hidden group",
                       // Default state
                       keyStatus === 'empty' && "bg-white/5 hover:bg-white/10 active:bg-white/20 border border-white/5 text-white",
                       // Correct position - vibrant green with glow
@@ -983,7 +1008,7 @@ function App() {
                 );
               })}
               {rowIdx === 2 && (
-                <button onClick={() => handleVirtualInput('BACKSPACE')} className="h-12 px-3 bg-white/10 text-white rounded-lg text-sm flex items-center justify-center active:bg-white/20 transition-colors">
+                <button onClick={() => handleVirtualInput('BACKSPACE')} className="h-10 px-3 bg-white/10 text-white rounded-lg text-sm flex items-center justify-center active:bg-white/20 transition-colors">
                   ⌫
                 </button>
               )}

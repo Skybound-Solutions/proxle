@@ -11,20 +11,16 @@ const AdSpace: React.FC<AdSpaceProps> = ({ type = 'coffee', variant = 'default',
     const [index, setIndex] = React.useState(0);
 
     const phrases = [
-        "Support",
-        "No Ads?",
-        "Pay Bills",
-        "Server Cost",
-        "Fuel Code",
-        "Buy Coffee",
-        "Help Out",
-        "Keep Going",
-        "Be a Hero",
-        "Dev Fuel",
-        "Send Love",
-        "Good Karma",
-        "Chip In",
-        "Power AI"
+        "Leaderboard",
+        "Top Players",
+        "See Streaks",
+        "Hall of Fame",
+        "Rankings",
+        "Champions",
+        "Elite Club",
+        "Top Scores",
+        "Best Players",
+        "Who's #1?"
     ];
 
     React.useEffect(() => {
@@ -46,7 +42,7 @@ const AdSpace: React.FC<AdSpaceProps> = ({ type = 'coffee', variant = 'default',
                             onClick={onClick}
                             className="flex items-center gap-3 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all active:scale-95 group overflow-hidden w-[140px] justify-start relative text-left"
                         >
-                            <span className="text-lg shrink-0 z-10">☕</span>
+                            <span className="text-lg shrink-0 z-10">🏆</span>
                             <div className="h-[20px] relative flex-1 overflow-hidden flex items-center">
                                 <AnimatePresence mode="wait">
                                     <motion.span
@@ -69,7 +65,7 @@ const AdSpace: React.FC<AdSpaceProps> = ({ type = 'coffee', variant = 'default',
                             rel="noopener noreferrer"
                             className="flex items-center gap-3 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all active:scale-95 group overflow-hidden w-[140px] justify-start relative"
                         >
-                            <span className="text-lg shrink-0 z-10">☕</span>
+                            <span className="text-lg shrink-0 z-10">🏆</span>
                             <div className="h-[20px] relative flex-1 overflow-hidden flex items-center">
                                 <AnimatePresence mode="wait">
                                     <motion.span

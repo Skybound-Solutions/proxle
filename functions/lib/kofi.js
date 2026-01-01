@@ -34,12 +34,21 @@ exports.kofiWebhook = (0, https_1.onRequest)({
             if (!q.empty) {
                 const userDoc = q.docs[0];
                 const userData = userDoc.data();
-                await userDoc.ref.update({
+                const isPublic = payload.is_public === true || payload.is_public === "1" || payload.is_public === 1;
+                const newMessage = payload.message || null;
+                const updateData = {
                     'donations.total': (((_a = userData.donations) === null || _a === void 0 ? void 0 : _a.total) || 0) + amount,
                     'donations.count': (((_b = userData.donations) === null || _b === void 0 ? void 0 : _b.count) || 0) + 1,
                     'lastDonationAt': new Date(),
-                    'isSupporter': true
-                });
+                    'isSupporter': true,
+                    'isAnonymous': !isPublic,
+                    'leaderboardName': payload.from_name || userData.displayName || "Supporter"
+                };
+                if (newMessage) {
+                    updateData['message'] = newMessage;
+                    updateData['messageApprovalStatus'] = 'pending';
+                }
+                await userDoc.ref.update(updateData);
                 logger.info(`Successfully credited ${email} with $${amount}`);
             }
             else {

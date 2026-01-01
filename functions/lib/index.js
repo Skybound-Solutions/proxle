@@ -70,7 +70,8 @@ Tasks:
    - 60-79 = related concepts (e.g., OCEAN -> SHIP)
    - 40-59 = loosely related
    - 0-39 = unrelated
-3. If similarity < 60, provide a one-word thematic hint about the target.
+3. If similarity < 60, provide a **single word** hint that describes a **shared attribute** linking the guess and the target.
+   - The hint must be a shared quality, physical property, or abstract concept (e.g. Target: PLANE, Guess: EAGLE -> Hint: "Flight").
    - The hint MUST be a single word.
    - The hint MUST NOT be in the "Forbidden hints" list.
    - The hint MUST NOT be the target word itself.
@@ -78,7 +79,7 @@ Tasks:
 Return ONLY valid JSON in this exact format:
 {"isValidWord": boolean, "similarity": number, "hint": string}
 
-Example: {"isValidWord": true, "similarity": 85, "hint": "Nautical"}`;
+Example: {"isValidWord": true, "similarity": 45, "hint": "Flight"}`;
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();

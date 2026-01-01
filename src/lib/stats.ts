@@ -9,6 +9,21 @@ export interface UserStats {
     lastPlayedDate: Timestamp | null;
     guessDistribution: Record<string, number>;
     winRate: number;
+
+    // Leaderboard Settings
+    displayOnLeaderboard?: boolean;
+    leaderboardName?: string;
+    showDonationAmount?: boolean;
+    showStreak?: boolean;
+    leaderboardNameApprovalStatus?: 'pending' | 'approved' | 'rejected';
+    message?: string;
+    messageApprovalStatus?: 'pending' | 'approved' | 'rejected';
+
+    // Donations
+    donations?: {
+        total: number;
+        count: number;
+    };
 }
 
 /**

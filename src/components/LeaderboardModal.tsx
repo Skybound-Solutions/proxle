@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, X, Heart, MessageSquare, Shield } from 'lucide-react';
+import { Trophy, X, Heart, MessageSquare, Flame } from 'lucide-react';
 import { collection, query, orderBy, limit, getDocs, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import clsx from 'clsx';
@@ -12,10 +12,17 @@ interface Supporter {
     message?: string;
     approvalStatus?: 'pending' | 'approved' | 'rejected';
     photoURL?: string;
-    isAnonymous: boolean;
-    showAmount: 'exact' | 'tier' | 'hidden';
+    showDonationAmount: boolean;
     timestamp: any;
     currentStreak: number;
+    showStreak: boolean;
+}
+
+interface StreakLeader {
+    id: string;
+    displayName: string;
+    currentStreak: number;
+    photoURL?: string;
 }
 
 interface LeaderboardModalProps {
@@ -23,51 +30,75 @@ interface LeaderboardModalProps {
     onClose: () => void;
 }
 
-type TimeWindow = '30days' | '90days' | 'alltime';
-
 export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalProps) {
-    const [activeTab, setActiveTab] = useState<TimeWindow>('alltime');
     const [supporters, setSupporters] = useState<Supporter[]>([]);
+    const [streakLeaders, setStreakLeaders] = useState<StreakLeader[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (isOpen) {
-            fetchSupporters();
+            fetchLeaderboardData();
         }
-    }, [isOpen, activeTab]);
+    }, [isOpen]);
 
-    const fetchSupporters = async () => {
+    const fetchLeaderboardData = async () => {
         setLoading(true);
         try {
-            // Read from the specialized public leaderboard collection
+            // Fetch top donators from leaderboard collection
             const leaderboardRef = collection(db, 'leaderboard');
-            const q = query(
+            const donatorsQuery = query(
                 leaderboardRef,
                 where('amount', '>', 0),
                 orderBy('amount', 'desc'),
                 limit(50)
             );
 
-            const snapshot = await getDocs(q);
-            const data = snapshot.docs.map(doc => {
+            // Fetch top 10 streaks from users collection
+            const usersRef = collection(db, 'users');
+            const streaksQuery = query(
+                usersRef,
+                where('displayOnLeaderboard', '==', true),
+                where('showStreak', '==', true),
+                where('currentStreak', '>=', 1),
+                orderBy('currentStreak', 'desc'),
+                limit(10)
+            );
+
+            const [donatorsSnap, streaksSnap] = await Promise.all([
+                getDocs(donatorsQuery),
+                getDocs(streaksQuery)
+            ]);
+
+            const donatorsData = donatorsSnap.docs.map(doc => {
                 const d = doc.data();
                 return {
                     id: doc.id,
-                    displayName: d.displayName,
-                    amount: d.amount,
+                    displayName: d.displayName || 'Anonymous',
+                    amount: d.amount || 0,
                     message: d.message,
                     approvalStatus: d.approvalStatus || 'pending',
                     photoURL: d.photoURL,
-                    isAnonymous: d.isAnonymous === true,
-                    showAmount: d.showAmount || 'exact',
+                    showDonationAmount: d.showAmount !== false,
                     timestamp: d.lastActiveAt,
-                    currentStreak: d.currentStreak || 0
+                    currentStreak: d.currentStreak || 0,
+                    showStreak: d.showStreak !== false
                 } as Supporter;
             });
 
-            setSupporters(data);
+            const streaksData = streaksSnap.docs.map(doc => {
+                const d = doc.data();
+                return {
+                    id: doc.id,
+                    displayName: d.leaderboardName || 'Anonymous',
+                    currentStreak: d.currentStreak || 0,
+                    photoURL: d.photoURL
+                } as StreakLeader;
+            });
+
+            setSupporters(donatorsData);
+            setStreakLeaders(streaksData);
         } catch (error) {
-            console.error("Fetch Supporters Error:", error);
+            console.error("Fetch Leaderboard Error:", error);
         } finally {
             setLoading(false);
         }
@@ -85,7 +116,7 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={onClose}
-                className="glass-overlay"
+                className="absolute inset-0 bg-black/60 z-0 backdrop-blur-sm"
             />
 
             <motion.div
@@ -101,8 +132,8 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                             <Trophy className="text-yellow-400" size={24} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-white tracking-tight">Supporters Hall</h2>
-                            <p className="text-xs text-white/50">Fueling the AI behind Proxle</p>
+                            <h2 className="text-xl font-bold text-white tracking-tight">Proxle Leaderboard</h2>
+                            <p className="text-xs text-white/50">Top Supporters & Active Players</p>
                         </div>
                     </div>
                     <button
@@ -113,41 +144,58 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                     </button>
                 </div>
 
-                {/* Filters */}
-                <div className="flex p-2 gap-1 bg-black/20 mx-6 mt-6 rounded-xl border border-white/5">
-                    <FilterTab active={activeTab === 'alltime'} label="All Time" onClick={() => setActiveTab('alltime')} />
-                    <FilterTab active={activeTab === '90days'} label="90 Days" onClick={() => setActiveTab('90days')} />
-                    <FilterTab active={activeTab === '30days'} label="30 Days" onClick={() => setActiveTab('30days')} />
-                </div>
-
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-12 gap-4">
                             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                            <p className="text-sm text-white/40 font-medium">Reading the Hall of Fame...</p>
-                        </div>
-                    ) : supporters.length === 0 ? (
-                        <div className="text-center py-12">
-                            <Heart className="mx-auto text-white/10 mb-4" size={48} />
-                            <p className="text-white/40">Be the first to support Proxle!</p>
+                            <p className="text-sm text-white/40 font-medium">Loading leaderboard...</p>
                         </div>
                     ) : (
                         <>
-                            {/* Top 3 Billboard */}
-                            <div className="space-y-4">
-                                {top3.map((s, i) => (
-                                    <BillboardItem key={s.id} supporter={s} rank={i + 1} />
-                                ))}
-                            </div>
+                            {/* Top 3 Supporters Billboard */}
+                            {top3.length > 0 && (
+                                <div className="space-y-4">
+                                    <h3 className="text-[10px] uppercase tracking-widest text-white/30 font-bold px-2 flex items-center gap-2">
+                                        <Heart size={12} className="text-cyan-400" />
+                                        Top Supporters
+                                    </h3>
+                                    {top3.map((s, i) => (
+                                        <BillboardItem key={s.id} supporter={s} rank={i + 1} />
+                                    ))}
+                                </div>
+                            )}
 
-                            {/* Others List */}
+                            {/* Streak Leaders Section */}
+                            {streakLeaders.length > 0 && (
+                                <div className="space-y-3">
+                                    <h3 className="text-[10px] uppercase tracking-widest text-white/30 font-bold px-2 flex items-center gap-2">
+                                        <Flame size={12} className="text-orange-400" />
+                                        Streak Leaders
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {streakLeaders.map((leader, i) => (
+                                            <StreakLeaderRow key={leader.id} leader={leader} rank={i + 1} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Other Supporters List */}
                             {others.length > 0 && (
                                 <div className="space-y-2">
-                                    <h3 className="text-[10px] uppercase tracking-widest text-white/30 font-bold px-2">Top Contributors</h3>
+                                    <h3 className="text-[10px] uppercase tracking-widest text-white/30 font-bold px-2">Other Supporters</h3>
                                     {others.map((s, i) => (
                                         <SupporterRow key={s.id} supporter={s} rank={i + 4} />
                                     ))}
+                                </div>
+                            )}
+
+                            {/* Empty State */}
+                            {supporters.length === 0 && streakLeaders.length === 0 && (
+                                <div className="text-center py-12">
+                                    <Heart className="mx-auto text-white/10 mb-4" size={48} />
+                                    <p className="text-white/40">Be the first to support Proxle!</p>
                                 </div>
                             )}
                         </>
@@ -158,8 +206,8 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                 <div className="p-6 bg-white/5 border-t border-white/10">
                     <div className="flex flex-col gap-4">
                         <div className="flex items-center gap-3 text-xs text-white/40 bg-black/20 p-3 rounded-xl border border-white/5">
-                            <Shield size={14} className="text-cyan-400 shrink-0" />
-                            <p>Top 3 supporters can display a custom message to all players. Verified via Ko-fi.</p>
+                            <Trophy size={14} className="text-yellow-400 shrink-0" />
+                            <p>Support Proxle to appear on the leaderboard and unlock a custom message!</p>
                         </div>
 
                         <a
@@ -169,26 +217,12 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
                             className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all active:scale-[0.98]"
                         >
                             <Heart size={20} fill="currentColor" />
-                            Support Proxle on Ko-fi
+                            Support Proxle & Join the Leaderboard
                         </a>
                     </div>
                 </div>
             </motion.div>
         </div>
-    );
-}
-
-function FilterTab({ active, label, onClick }: { active: boolean, label: string, onClick: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            className={clsx(
-                "flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all",
-                active ? "bg-white/10 text-white shadow-inner" : "text-white/30 hover:text-white/60"
-            )}
-        >
-            {label}
-        </button>
     );
 }
 
@@ -216,11 +250,11 @@ function BillboardItem({ supporter, rank }: { supporter: Supporter, rank: number
             <div className="flex justify-between items-start mb-2 relative z-10">
                 <div className="flex items-center gap-3">
                     <div className="relative">
-                        {supporter.photoURL && !supporter.isAnonymous ? (
-                            <img src={supporter.photoURL} className="w-10 h-10 rounded-full border-2 border-white/10" />
+                        {supporter.photoURL ? (
+                            <img src={supporter.photoURL} className="w-10 h-10 rounded-full border-2 border-white/10" alt="" />
                         ) : (
                             <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-lg grayscale">
-                                {supporter.isAnonymous ? '👤' : '✨'}
+                                ✨
                             </div>
                         )}
                         <div className="absolute -top-2 -left-2 text-xl drop-shadow-md">
@@ -230,8 +264,8 @@ function BillboardItem({ supporter, rank }: { supporter: Supporter, rank: number
                 </div>
                 <div>
                     <div className="font-bold text-white flex items-center gap-2">
-                        {supporter.isAnonymous ? 'Anonymous Supporter' : supporter.displayName}
-                        {!supporter.isAnonymous && supporter.currentStreak > 0 && (
+                        {supporter.displayName}
+                        {supporter.showStreak && supporter.currentStreak > 0 && (
                             <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-500/10 border border-orange-500/20 rounded-full">
                                 <span className="text-[10px] text-orange-400">🔥</span>
                                 <span className="text-[10px] font-bold text-orange-300">{supporter.currentStreak}</span>
@@ -239,11 +273,11 @@ function BillboardItem({ supporter, rank }: { supporter: Supporter, rank: number
                         )}
                     </div>
                     <div className="text-[10px] text-white/50 uppercase tracking-widest font-mono">
-                        {supporter.showAmount === 'exact' ? `$${supporter.amount.toFixed(2)}` : 'Supporter'}
+                        {supporter.showDonationAmount ? `$${supporter.amount.toFixed(2)}` : '💎 Supporter'}
                     </div>
                 </div>
             </div>
-            {supporter.message && !supporter.isAnonymous && supporter.approvalStatus === 'approved' && (
+            {supporter.message && supporter.approvalStatus === 'approved' && (
                 <div className="mt-3 p-3 bg-white/5 rounded-xl border border-white/5 relative z-10">
                     <MessageSquare size={12} className="absolute -top-1.5 -right-1.5 text-cyan-400/50" />
                     <p className="text-sm italic text-white/80 leading-relaxed">
@@ -260,6 +294,33 @@ function BillboardItem({ supporter, rank }: { supporter: Supporter, rank: number
     );
 }
 
+function StreakLeaderRow({ leader, rank }: { leader: StreakLeader, rank: number }) {
+    return (
+        <div className="flex items-center justify-between p-3 hover:bg-white/5 rounded-xl transition-colors border border-transparent hover:border-white/5 group">
+            <div className="flex items-center gap-3">
+                <span className="w-6 text-[10px] font-mono font-bold text-white/20 group-hover:text-white/40 transition-colors">
+                    #{rank}
+                </span>
+                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-xs">
+                    {leader.photoURL ? (
+                        <img src={leader.photoURL} className="w-full h-full rounded-full" alt="" />
+                    ) : (
+                        '✨'
+                    )}
+                </div>
+                <span className="font-medium text-sm text-white/80">
+                    {leader.displayName}
+                </span>
+            </div>
+            <div className="flex items-center gap-1 px-2 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full">
+                <span className="text-orange-400">🔥</span>
+                <span className="text-sm font-bold text-orange-300">{leader.currentStreak}</span>
+                <span className="text-[10px] text-orange-300/60">days</span>
+            </div>
+        </div>
+    );
+}
+
 function SupporterRow({ supporter, rank }: { supporter: Supporter, rank: number }) {
     return (
         <div className="flex items-center justify-between p-3 hover:bg-white/5 rounded-xl transition-colors border border-transparent hover:border-white/5 group">
@@ -268,15 +329,15 @@ function SupporterRow({ supporter, rank }: { supporter: Supporter, rank: number 
                     #{rank}
                 </span>
                 <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-xs grayscale">
-                    {supporter.photoURL && !supporter.isAnonymous ? (
-                        <img src={supporter.photoURL} className="w-full h-full rounded-full" />
+                    {supporter.photoURL ? (
+                        <img src={supporter.photoURL} className="w-full h-full rounded-full" alt="" />
                     ) : (
-                        supporter.isAnonymous ? '👤' : '✨'
+                        '✨'
                     )}
                 </div>
                 <span className="font-medium text-sm text-white/80 flex items-center gap-2">
-                    {supporter.isAnonymous ? 'Anonymous' : supporter.displayName}
-                    {!supporter.isAnonymous && supporter.currentStreak > 0 && (
+                    {supporter.displayName}
+                    {supporter.showStreak && supporter.currentStreak > 0 && (
                         <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white/5 rounded-full">
                             <span className="text-[9px] text-orange-400">🔥</span>
                             <span className="text-[9px] font-bold text-white/60">{supporter.currentStreak}</span>
@@ -285,7 +346,7 @@ function SupporterRow({ supporter, rank }: { supporter: Supporter, rank: number 
                 </span>
             </div>
             <div className="text-sm font-mono font-bold text-white/40">
-                {supporter.showAmount === 'exact' ? `$${supporter.amount.toFixed(0)}` : '💎'}
+                {supporter.showDonationAmount ? `$${supporter.amount.toFixed(0)}` : '💎'}
             </div>
         </div>
     );
