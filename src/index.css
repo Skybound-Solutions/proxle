@@ -39,9 +39,6 @@
     height: 100dvh;
     /* Dynamic Viewport Height */
     width: 100%;
-    overflow: hidden;
-    position: fixed;
-    /* Prevent rubber-banding */
   }
 
   body {
