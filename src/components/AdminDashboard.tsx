@@ -247,7 +247,7 @@ export default function AdminDashboard() {
     if (!user || !ADMIN_EMAILS.includes(user.email || '')) return null;
 
     return (
-        <div className="min-h-screen bg-background text-foreground font-sans flex flex-col items-center overflow-x-hidden relative selection:bg-cyan-500/30">
+        <div className="min-h-screen bg-background text-foreground font-sans flex flex-col items-center relative selection:bg-cyan-500/30">
             {/* Background Ambience */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
                 <div className="absolute -top-20 -left-20 w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[120px] opacity-20 animate-pulse" />
@@ -572,7 +572,7 @@ export default function AdminDashboard() {
             {editingUser && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm shadow-2xl" onClick={() => setEditingUser(null)} />
-                    <div className="glass-panel w-full max-w-md p-8 rounded-3xl border border-white/10 shadow-2xl relative z-10 text-white">
+                    <div className="glass-panel w-full max-w-md max-h-[90vh] overflow-y-auto p-8 rounded-3xl border border-white/10 shadow-2xl relative z-10 text-white">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold flex items-center gap-2">
                                 <Edit2 size={20} className="text-cyan-400" />

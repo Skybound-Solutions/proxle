@@ -9,7 +9,7 @@ const firebaseConfig = {
     appId: "1:890224174750:web:827fd57e4f9bb7653ebd8f",
     storageBucket: "proxle-game.firebasestorage.app",
     apiKey: "AIzaSyD7ZCFZg3BCSmZifP8dnDdECADYOTDR-eU",
-    authDomain: "proxle.app",  // Use custom domain instead of firebaseapp.com for better Safari compatibility
+    authDomain: "proxle.app",  // Custom domain for better Safari compatibility
     messagingSenderId: "890224174750",
 };
 
