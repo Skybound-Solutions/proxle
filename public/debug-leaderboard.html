@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Proxle Leaderboard Debug</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+        .section { margin: 20px 0; padding: 15px; background: #2a2a2a; border-radius: 8px; }
+        .user { padding: 8px; margin: 4px 0; background: #3a3a3a; border-radius: 4px; }
+        .error { color: #ff5555; }
+        .success { color: #55ff55; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Proxle Leaderboard Debug</h1>
+    <div id="output"></div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDLXDdOgJBUmhfhDKdpxPJPWJQXLLnHGJo",
+            authDomain: "proxle-game.firebaseapp.com",
+            projectId: "proxle-game",
+            storageBucket: "proxle-game.firebasestorage.app",
+            messagingSenderId: "1026829663034",
+            appId: "1:1026829663034:web:e4b0d5e5c1e5e5e5e5e5e5"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const output = document.getElementById('output');
+
+        async function debug() {
+            try {
+                output.innerHTML += '<div class="section"><h2>📊 Leaderboard Collection</h2>';
+                
+                const lbSnap = await db.collection('leaderboard')
+                    .where('displayOnLeaderboard', '==', true)
+                    .where('showStreak', '==', true)
+                    .where('currentStreak', '>=', 1)
+                    .orderBy('currentStreak', 'desc')
+                    .limit(20)
+                    .get();
+                
+                output.innerHTML += `<p class="success">✅ Query succeeded! Found ${lbSnap.size} users</p>`;
+                
+                lbSnap.forEach((doc, i) => {
+                    const d = doc.data();
+                    output.innerHTML += `<div class="user">${i+1}. ${d.displayName} - Streak: ${d.currentStreak} 🔥</div>`;
+                });
+                
+                output.innerHTML += '</div>';
+                
+                // Also check top supporters
+                output.innerHTML += '<div class="section"><h2>💎 Top Supporters</h2>';
+                const suppSnap = await db.collection('leaderboard')
+                    .where('amount', '>', 0)
+                    .orderBy('amount', 'desc')
+                    .limit(3)
+                    .get();
+                
+                output.innerHTML += `<p class="success">✅ Found ${suppSnap.size} supporters</p>`;
+                
+                suppSnap.forEach((doc, i) => {
+                    const d = doc.data();
+                    output.innerHTML += `<div class="user">${i+1}. ${d.displayName} - $${d.amount}</div>`;
+                });
+                
+                output.innerHTML += '</div>';
+                
+            } catch (error) {
+                output.innerHTML += `<p class="error">❌ Error: ${error.message}</p>`;
+                console.error(error);
+            }
+        }
+
+        debug();
+    </script>
+</body>
+</html>

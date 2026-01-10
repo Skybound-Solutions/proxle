@@ -23,8 +23,7 @@ console.log('2. RECENT WORDS (Last 7 days):');
 const today = new Date('2025-12-31');
 for (let i = 6; i >= 0; i--) {
     const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const word = getWordForDate(date);
+    const word = getWordForDate(date.toLocaleDateString('en-CA'));
     console.log(`   ${date.toISOString().split('T')[0]}: ${word}`);
 }
 
@@ -32,8 +31,7 @@ for (let i = 6; i >= 0; i--) {
 console.log('\n3. UPCOMING WORDS (Next 14 days):');
 for (let i = 0; i < 14; i++) {
     const date = new Date(today);
-    date.setDate(date.getDate() + i);
-    const word = getWordForDate(date);
+    const word = getWordForDate(date.toLocaleDateString('en-CA'));
     console.log(`   ${date.toISOString().split('T')[0]}: ${word}`);
 }
 
@@ -43,7 +41,7 @@ const recentWords: string[] = [];
 for (let i = 6; i >= 0; i--) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
-    recentWords.push(getWordForDate(date));
+    recentWords.push(getWordForDate(date.toLocaleDateString('en-CA')));
 }
 
 for (let i = 0; i < recentWords.length - 1; i++) {
@@ -66,13 +64,12 @@ for (let i = 0; i < oldSeq.length - 1; i++) {
 console.log('\n   New sequence (upcoming 3 days):');
 for (let i = 0; i < 3; i++) {
     const date = new Date(today);
-    date.setDate(date.getDate() + i);
-    const word = getWordForDate(date);
+    const word = getWordForDate(date.toLocaleDateString('en-CA'));
 
     if (i > 0) {
         const prevDate = new Date(today);
         prevDate.setDate(prevDate.getDate() + i - 1);
-        const prevWord = getWordForDate(prevDate);
+        const prevWord = getWordForDate(prevDate.toLocaleDateString('en-CA'));
         const similarity = calculateWordSimilarity(prevWord, word);
         console.log(`     ${prevWord} → ${word}: ${similarity.toFixed(3)}`);
     } else {

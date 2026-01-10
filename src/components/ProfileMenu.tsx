@@ -117,7 +117,7 @@ export default function ProfileMenu({ user, stats, onSignOut, onViewStats, onVie
                                     onViewLeaderboardSettings();
                                     setIsOpen(false);
                                 }}
-                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/10 rounded-lg transition-colors text-left text-white/90 mb-1"
+                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/10 rounded-lg transition-colors text-left text-white/90"
                             >
                                 <Trophy size={18} className="text-yellow-400" />
                                 <span className="text-sm font-bold">Leaderboard Settings</span>

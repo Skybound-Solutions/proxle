@@ -16,27 +16,33 @@ export const evaluateGuess = onCall({
     timeoutSeconds: 60
 }, async (request) => {
     logger.info("Evaluating guess (Real AI)", request.data);
-    const { guessWord, previousHints = [] } = request.data;
+    const { guessWord, previousHints = [], date } = request.data;
     const input = guessWord.toUpperCase();
     // Get the hidden target word server-side
-    const target = getWordForDate(new Date()).toUpperCase();
+    // Fallback to server local date if client date is missing
+    const todayStr = date || new Date().toLocaleDateString('en-CA');
+    const target = getWordForDate(todayStr).toUpperCase();
     const hintsToExclude = [...(previousHints as string[]), input, target].join(', ');
 
     // Calculate Orthographic Match Pattern (Green/Yellow/Gray)
-    const letterStatus: ('correct' | 'present' | 'absent')[] = Array(5).fill('absent');
+    // FIXED: Use input length instead of fixed 5-element array
+    const letterStatus: ('correct' | 'present' | 'absent')[] = Array(input.length).fill('absent');
     const targetArr = target.split('');
     const inputArr = input.split('');
 
     // First pass: Find greens (correct position)
-    inputArr.forEach((char: string, i: number) => {
+    // Only check positions that exist in both words
+    for (let i = 0; i < Math.min(inputArr.length, targetArr.length); i++) {
+        const char = inputArr[i];
         if (char === targetArr[i]) {
             letterStatus[i] = 'correct';
             targetArr[i] = '#'; // Mark as used
         }
-    });
+    }
 
     // Second pass: Find yellows (present but wrong spot)
-    inputArr.forEach((char: string, i: number) => {
+    for (let i = 0; i < inputArr.length; i++) {
+        const char = inputArr[i];
         if (letterStatus[i] !== 'correct') {
             const targetIndex = targetArr.indexOf(char);
             if (targetIndex !== -1) {
@@ -44,7 +50,7 @@ export const evaluateGuess = onCall({
                 targetArr[targetIndex] = '#'; // Mark as used
             }
         }
-    });
+    }
 
     // Check for exact win to bypass AI if needed (optimization)
     if (input === target) {

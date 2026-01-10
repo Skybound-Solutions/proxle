@@ -55,7 +55,7 @@ function getWordsForDateRange(startDate, days) {
     for (let i = 0; i < days; i++) {
         const date = new Date(startDate);
         date.setDate(date.getDate() + i);
-        const word = (0, wordList_1.getWordForDate)(date);
+        const word = (0, wordList_1.getWordForDate)(date.toLocaleDateString('en-CA'));
         words.push({
             date: date.toISOString().split('T')[0],
             word,

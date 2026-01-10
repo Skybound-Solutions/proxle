@@ -13,6 +13,9 @@ import SignInPrompt from './components/SignInPrompt';
 import StatsModal from './components/StatsModal';
 import LeaderboardModal from './components/LeaderboardModal';
 import LeaderboardSettingsModal from './components/LeaderboardSettingsModal';
+import { getWordForDate, calculateLetterStatus } from './lib/wordUtils';
+import { isValidWord } from './data/commonWords';
+
 
 
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -50,10 +53,11 @@ function App() {
   const ADMIN_EMAILS = ['banklam@skyboundmi.com', 'proxle@skyboundmi.com'];
   const isAdmin = user && ADMIN_EMAILS.includes(user.email || '');
 
-  // Countdown Timer
+  // Countdown Timer + Midnight Reset
   useEffect(() => {
     const updateCountdown = () => {
       const now = new Date();
+      const todayStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
       const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       const diff = tomorrow.getTime() - now.getTime();
 
@@ -62,6 +66,25 @@ function App() {
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
       setNextGameTime(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+
+      // BUG FIX #2: Clear old puzzle data at midnight
+      const lastClearDate = localStorage.getItem('proxle_last_clear');
+      if (lastClearDate !== todayStr) {
+        // Clear all previous puzzle data (but not user preferences)
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('proxle_guesses_') && !key.endsWith(todayStr)) {
+            localStorage.removeItem(key);
+          }
+        });
+        localStorage.setItem('proxle_last_clear', todayStr);
+
+        // Reset game state if we crossed midnight
+        if (lastClearDate !== null) { // Don't reset on first load
+          setGuesses([]);
+          setShowVictory(false);
+          setShowStats(false);
+        }
+      }
     };
 
     updateCountdown();
@@ -97,21 +120,34 @@ function App() {
 
   // Load/Save guesses from localStorage for persistence
   useEffect(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = new Date().toLocaleDateString('en-CA');
     const saved = localStorage.getItem(`proxle_guesses_${todayStr}`);
     if (saved) {
       const parsedGuesses = JSON.parse(saved);
       setGuesses(parsedGuesses);
-      // If they already won today, show victory screen
-      if (parsedGuesses.some((g: Guess) => g.similarity === 100)) {
-        setShowStats(true); // Show stats instead of victory to avoid repeat celebration
+
+      // Verification: Check if the winning guess actually matches today's word
+      // This handles cases where word lists changed or timezone transition occurred
+      const targetWord = getWordForDate(todayStr).toUpperCase();
+      const hasWinningGuess = parsedGuesses.some((g: Guess) =>
+        g.similarity === 100 && g.word.toUpperCase() === targetWord
+      );
+
+      if (hasWinningGuess) {
+        setShowStats(true);
+      } else if (parsedGuesses.some((g: Guess) => g.similarity === 100)) {
+        // They "won" but the word doesn't match today's target!
+        // This means it was a stale win from a different word list or UTC shift.
+        // We'll keep the guesses but NOT show stats, allowing them to play today's real word.
+        console.log("Stale win detected for today. Allowing replay of new word.");
+        setShowStats(false);
       }
     }
   }, []);
 
   useEffect(() => {
     if (guesses.length > 0) {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = new Date().toLocaleDateString('en-CA');
       localStorage.setItem(`proxle_guesses_${todayStr}`, JSON.stringify(guesses));
     }
   }, [guesses]);
@@ -178,6 +214,55 @@ function App() {
 
   const submitGuess = async () => {
     if (input.length < 3) return;
+
+    const guessWord = input.toUpperCase();
+
+    // Get today's target word for immediate feedback
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const targetWord = getWordForDate(todayStr);
+
+    // Instant validation using common words dictionary
+    if (!isValidWord(guessWord)) {
+      alert(`"${input}" is not a valid word!`);
+      return;
+    }
+
+    // Calculate letter status immediately (before AI call)
+    const letterStatus = calculateLetterStatus(guessWord, targetWord);
+
+    // Check for immediate win
+    const isWin = guessWord === targetWord;
+
+    // Create initial guess with instant feedback (similarity and hint will be updated)
+    const initialGuess: Guess = {
+      word: guessWord,
+      similarity: isWin ? 100 : 0, // Will be updated by AI
+      simWords: [], // Will be updated by AI with hint
+      letterStatus
+    };
+
+    // Add guess to UI IMMEDIATELY for instant visual feedback
+    setGuesses(prev => [initialGuess, ...prev]);
+    setInput("");
+
+    // Handle win case immediately
+    if (isWin) {
+      setShowVictory(true);
+      updateStats(true, guesses.length + 1);
+      trackEvent('level_end', { guesses: guesses.length + 1, outcome: 'win' });
+      setTimeout(() => {
+        setShowVictory(false);
+        setShowStats(true);
+      }, 1500);
+      return;
+    }
+
+    // Track game start
+    if (guesses.length === 0) {
+      trackEvent('game_start');
+    }
+
+    // Now fetch AI data in background (for similarity and hint)
     setIsLoading(true);
 
     try {
@@ -185,69 +270,45 @@ function App() {
       const previousHints = guesses.flatMap(g => g.simWords);
 
       const result = await httpsCallable(functions, 'evaluateGuess')({
-        guessWord: input.toUpperCase(),
-        previousHints
+        guessWord,
+        previousHints,
+        date: todayStr
       });
 
       console.log("AI Result:", result);
 
       const data = result.data as any;
 
-      if (!data || typeof data.isValidWord === 'undefined') {
+      if (!data || typeof data.similarity === 'undefined') {
         throw new Error("Invalid response format from AI");
       }
 
-      if (!data.isValidWord) {
-        // Handle invalid word
-        alert(`"${input}" is not a valid word!`);
-        setIsLoading(false);
-        return;
-      }
-
-      const newGuess: Guess = {
-        word: input.toUpperCase(),
-        similarity: data.similarity,
-        simWords: data.hint ? [data.hint] : [],
-        letterStatus: data.letterStatus || Array(input.length).fill('absent')
-      };
-
-      setGuesses(prev => [newGuess, ...prev]);
-
-      // Check for win condition (similarity 100 means exact match)
-      if (data.similarity === 100) {
-        // WINNER!
-        setShowVictory(true);
-        updateStats(true, guesses.length + 1); // +1 because we are just adding this guess now
-        trackEvent('level_end', { guesses: guesses.length + 1, outcome: 'win' });
-        setTimeout(() => {
-          setShowVictory(false);
-          setShowStats(true);
-        }, 1500);
-      }
+      // Update the guess with AI-provided similarity and hint
+      setGuesses(prev => prev.map((g, idx) =>
+        idx === 0 ? {
+          ...g,
+          similarity: data.similarity,
+          simWords: data.hint ? [data.hint] : []
+        } : g
+      ));
 
     } catch (error: any) {
       console.error("AI Evaluation Failed:", error);
 
-      // Check for specific error types if needed
+      // On AI failure, update with error message (letter status already shown)
       let errorMsg = "AI Offline";
       if (error.message?.includes("failed-precondition")) errorMsg = "Config Error";
 
-      const newGuess: Guess = {
-        word: input.toUpperCase(),
-        similarity: 0,
-        simWords: [errorMsg],
-        letterStatus: Array(input.length).fill('absent')
-      };
-      setGuesses(prev => [newGuess, ...prev]);
+      setGuesses(prev => prev.map((g, idx) =>
+        idx === 0 ? {
+          ...g,
+          similarity: 0,
+          simWords: [errorMsg]
+        } : g
+      ));
     } finally {
       setIsLoading(false);
     }
-
-    if (guesses.length === 0) {
-      trackEvent('game_start');
-    }
-
-    setInput("");
   };
 
   // Render Grid Row
@@ -832,21 +893,27 @@ function App() {
       <main className="flex-1 w-full max-w-md px-4 flex flex-col z-10 items-stretch overflow-hidden">
 
         {/* Active Input Area */}
-        <div className="mb-4 relative">
-          <div className="flex justify-between items-center mb-2 px-1">
-            <span className="text-xs font-medium text-white/40 uppercase tracking-widest">Guess the word</span>
+        <div className="mb-2 relative shrink-0">
+          <div className="flex justify-between items-center mb-1 px-1">
+            <span className="text-xs font-medium text-white/40 uppercase tracking-widest">
+              {guesses.some(g => g.similarity === 100) ? "Winning Word" : "Guess the word"}
+            </span>
           </div>
 
-          {renderRow(input)}
+          {renderRow(guesses.some(g => g.similarity === 100) ? guesses[0].word : input)}
+        </div>
 
-          {/* Semantic Hints (Recent) */}
+        <div className="flex-1 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
+          {/* Recent Clue Analysis (Moved inside scrollable area) */}
           {guesses.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-4 p-4 glass-card rounded-xl border border-white/5"
+              className="p-3 glass-card rounded-xl border border-white/5 mb-3"
             >
-              <div className="text-xs text-white/50 uppercase tracking-wider mb-2">Last Clue Analysis</div>
+              <div className="text-xs text-white/50 uppercase tracking-wider mb-2">
+                {guesses[0].similarity === 100 ? "Victory Analysis" : "Last Clue Analysis"}
+              </div>
 
               {/* High Proximity Alert */}
               {guesses[0].similarity > 60 && (
@@ -854,7 +921,7 @@ function App() {
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   className={cn(
-                    "mb-3 p-3 border rounded-lg text-center",
+                    "mb-2 p-2 border rounded-lg text-center",
                     guesses[0].similarity === 100
                       ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-500/30 cursor-pointer hover:bg-green-500/30 transition-colors"
                       : "bg-gradient-to-r from-orange-500/20 to-red-500/20 border-orange-500/30"
@@ -874,7 +941,7 @@ function App() {
                         "🔥 HEATING UP! 🔥"}
                   </div>
                   <div className={cn(
-                    "text-[10px] mt-1",
+                    "text-[10px] mt-0.5",
                     guesses[0].similarity === 100 ? "text-green-300/80" : "text-orange-300/80"
                   )}>
                     {guesses[0].similarity === 100 ? (
@@ -889,12 +956,12 @@ function App() {
                 </motion.div>
               )}
 
-              {/* Word Length Hint */}
-              {getWordLengthHint() && (
+              {/* Word Length Hint (Hidden on Win) */}
+              {getWordLengthHint() && guesses[0].similarity !== 100 && (
                 <motion.div
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  className="mb-3 p-2.5 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-lg text-center"
+                  className="mb-2 p-2 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-lg text-center"
                 >
                   <div className="text-sm font-bold text-green-400">
                     {getWordLengthHint()}
@@ -907,26 +974,43 @@ function App() {
                 <div className="flex flex-col">
                   <span className="text-sm font-bold text-white">{guesses[0].word}</span>
                   <div className="flex gap-2 mt-1">
-                    {guesses[0].simWords.map(w => (
-                      <span key={w} className="text-[10px] px-2 py-0.5 bg-primary/20 text-primary border border-primary/30 rounded-full">{w}</span>
-                    ))}
+                    {guesses[0].simWords.length > 0 ? (
+                      guesses[0].simWords.map(w => (
+                        <span key={w} className="text-[10px] px-2 py-0.5 bg-primary/20 text-primary border border-primary/30 rounded-full">{w}</span>
+                      ))
+                    ) : guesses[0].similarity === 0 ? (
+                      <div className="flex items-center gap-1.5 text-[10px] text-white/40">
+                        <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Loading hint...
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
-                  <span className={cn("text-2xl font-black",
-                    guesses[0].similarity > 70 ? "text-green-400" :
-                      guesses[0].similarity > 40 ? "text-yellow-400" : "text-red-400"
-                  )}>
-                    {Math.floor(guesses[0].similarity)}%
-                  </span>
+                  {guesses[0].similarity === 0 ? (
+                    <div className="flex items-center gap-1.5">
+                      <svg className="animate-spin h-5 w-5 text-white/40" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    </div>
+                  ) : (
+                    <span className={cn("text-2xl font-black",
+                      guesses[0].similarity > 70 ? "text-green-400" :
+                        guesses[0].similarity > 40 ? "text-yellow-400" : "text-red-400"
+                    )}>
+                      {Math.floor(guesses[0].similarity)}%
+                    </span>
+                  )}
                   <span className="text-[10px] text-white/30">Proximity</span>
                 </div>
               </div>
             </motion.div>
           )}
-        </div>
 
-        <div className="flex-1 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
           {guesses.map((g, i) => (
             <div key={i} className="bg-white/5 rounded-lg border border-white/5 p-2">
               <div className="flex items-center gap-3">
@@ -957,25 +1041,36 @@ function App() {
                   })}
                 </div>
 
-                {/* Metadata */}
-                <div className="flex-1 flex items-center justify-between min-w-0">
-                  <div className="flex gap-1.5 flex-wrap">
-                    {g.simWords.length > 0 ? (
-                      g.simWords.map(w => (
-                        <span key={w} className="text-[9px] px-1.5 py-0.5 bg-primary/20 text-primary border border-primary/30 rounded-full whitespace-nowrap">{w}</span>
-                      ))
-                    ) : (
-                      g.similarity > 60 && (
-                        <span className="text-[9px] px-1.5 py-0.5 bg-orange-500/20 text-orange-300 border border-orange-500/30 rounded-full whitespace-nowrap">
-                          No Hint (So Close!)
-                        </span>
-                      )
-                    )}
+                {/* Info */}
+                <div className="flex-1 flex justify-between items-center min-w-0">
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold text-white truncate">{g.word}</span>
+                    <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                      {g.simWords.length > 0 ? (
+                        g.simWords.slice(0, 2).map(w => (
+                          <span key={w} className="text-[9px] px-1.5 py-0.5 bg-white/10 rounded-full text-white/60 whitespace-nowrap">{w}</span>
+                        ))
+                      ) : g.similarity === 0 ? (
+                        <svg className="animate-spin h-2.5 w-2.5 text-white/30" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : null}
+                    </div>
                   </div>
-                  <span className={cn("font-bold text-sm ml-2 shrink-0",
-                    g.similarity > 70 ? "text-green-400" :
-                      g.similarity > 40 ? "text-yellow-400" : "text-red-400"
-                  )}>{Math.floor(g.similarity)}%</span>
+                  {g.similarity === 0 ? (
+                    <svg className="animate-spin h-4 w-4 text-white/30 ml-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <div className={cn("text-sm font-bold ml-2",
+                      g.similarity > 70 ? "text-green-400" :
+                        g.similarity > 40 ? "text-yellow-400" : "text-white/40"
+                    )}>
+                      {Math.floor(g.similarity)}%
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -986,49 +1081,61 @@ function App() {
 
       {/* Keyboard */}
       <footer className="w-full max-w-md p-2 z-20 bg-background/90 backdrop-blur-md border-t border-white/5 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2">
-        <div className="flex flex-col gap-2">
-          {["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"].map((row, rowIdx) => (
-            <div key={rowIdx} className="flex justify-center gap-1.5">
-              {rowIdx === 2 && (
-                <button onClick={submitGuess} disabled={isLoading} className="h-10 px-3 bg-primary text-primary-foreground font-bold rounded-lg text-sm flex items-center justify-center shadow-lg shadow-primary/20 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-wait">
-                  {isLoading ? "..." : "ENTER"}
-                </button>
-              )}
-              {row.split('').map(char => {
-                const keyStatus = getKeyStatus(char);
-
-                return (
-                  <button
-                    key={char}
-                    onClick={() => handleVirtualInput(char)}
-                    className={cn(
-                      "h-10 w-8 sm:w-10 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center justify-center relative overflow-hidden group",
-                      // Default state
-                      keyStatus === 'empty' && "bg-white/5 hover:bg-white/10 active:bg-white/20 border border-white/5 text-white",
-                      // Correct position - vibrant green with glow
-                      keyStatus === 'correct' && "bg-gradient-to-br from-emerald-500 to-green-600 border-2 border-emerald-400/50 text-white shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:scale-105",
-                      // Wrong position - amber/yellow with glow
-                      keyStatus === 'present' && "bg-gradient-to-br from-amber-500 to-yellow-600 border-2 border-amber-400/50 text-white shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50 hover:scale-105",
-                      // Not in word - muted dark
-                      keyStatus === 'absent' && "bg-zinc-800/90 border border-zinc-700/50 text-zinc-500 hover:bg-zinc-800"
-                    )}
-                  >
-                    {/* Subtle shine effect for correct/present keys */}
-                    {(keyStatus === 'correct' || keyStatus === 'present') && (
-                      <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    )}
-                    <span className="relative z-10">{char}</span>
-                  </button>
-                );
-              })}
-              {rowIdx === 2 && (
-                <button onClick={() => handleVirtualInput('BACKSPACE')} className="h-10 px-3 bg-white/10 text-white rounded-lg text-sm flex items-center justify-center active:bg-white/20 transition-colors">
-                  ⌫
-                </button>
-              )}
+        {guesses.some(g => g.similarity === 100) ? (
+          <div className="flex flex-col items-center justify-center py-2 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            <div className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] mb-1">Next Proxle In</div>
+            <div className="text-3xl font-black font-mono bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent tracking-widest tabular-nums filter drop-shadow-2xl">
+              {nextGameTime}
             </div>
-          ))}
-        </div>
+            <p className="mt-1 text-[9px] text-white/20 text-center max-w-[200px]">
+              Come back tomorrow for a new puzzle!
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"].map((row, rowIdx) => (
+              <div key={rowIdx} className="flex justify-center gap-1">
+                {rowIdx === 2 && (
+                  <button onClick={submitGuess} disabled={isLoading} className="h-12 min-w-[60px] w-[60px] bg-primary text-primary-foreground font-bold rounded-lg text-sm flex items-center justify-center shadow-lg shadow-primary/20 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-wait">
+                    {isLoading ? "..." : "ENTER"}
+                  </button>
+                )}
+                {row.split('').map(char => {
+                  const keyStatus = getKeyStatus(char);
+
+                  return (
+                    <button
+                      key={char}
+                      onClick={() => handleVirtualInput(char)}
+                      className={cn(
+                        "h-12 w-9 sm:w-11 rounded-lg text-base font-semibold transition-all duration-300 flex items-center justify-center relative overflow-hidden group touch-manipulation",
+                        // Default state
+                        keyStatus === 'empty' && "bg-white/5 hover:bg-white/10 active:bg-white/20 border border-white/5 text-white",
+                        // Correct position - vibrant green with glow
+                        keyStatus === 'correct' && "bg-gradient-to-br from-emerald-500 to-green-600 border-2 border-emerald-400/50 text-white shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:scale-105",
+                        // Wrong position - amber/yellow with glow
+                        keyStatus === 'present' && "bg-gradient-to-br from-amber-500 to-yellow-600 border-2 border-amber-400/50 text-white shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50 hover:scale-105",
+                        // Not in word - muted dark
+                        keyStatus === 'absent' && "bg-zinc-800/90 border border-zinc-700/50 text-zinc-500 hover:bg-zinc-800"
+                      )}
+                    >
+                      {/* Subtle shine effect for correct/present keys */}
+                      {(keyStatus === 'correct' || keyStatus === 'present') && (
+                        <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      )}
+                      <span className="relative z-10">{char}</span>
+                    </button>
+                  );
+                })}
+                {rowIdx === 2 && (
+                  <button onClick={() => handleVirtualInput('BACKSPACE')} className="h-12 min-w-[50px] w-[50px] bg-white/10 text-white rounded-lg text-base flex items-center justify-center active:bg-white/20 transition-colors touch-manipulation">
+                    ⌫
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </footer>
     </div >
   );

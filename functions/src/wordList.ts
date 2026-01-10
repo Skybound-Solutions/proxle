@@ -1,5 +1,6 @@
-// Balanced word list: 80% 5-letter words, 20% 4-letter words
-// Total: 756 words (605 5-letter, 151 4-letter)
+// Same word list as client
+// Balanced word list: 50% 5-letter, 30% 4-letter, 20% 3-letter
+// Total: 756 words (378 5-letter, 227 4-letter, 151 3-letter)
 // Optimized for variety using seeded shuffle (seed: 42069)
 export const WORD_LIST = [
     "PIECE", "SHAPE", "AGREE", "NOVEL", "DEALT", "NEWLY", "PEACE", "ENTRY", "QUEST", "TRIED", "ADMIT", "MORAL",
@@ -47,24 +48,25 @@ export const WORD_LIST = [
     "DENY", "ABUSE", "BENCH", "HAPPY", "ROBOT", "VALUE", "FIFTH", "MAGIC", "UPSET", "CORAL", "KISS", "PRINT",
     "BAKER", "TOWER", "LIAR", "IMAGE", "FUNNY", "GRADE", "NIGHT", "RAVEN", "LEST", "POLL", "GUESS", "GRACE",
     "LOGIC", "EARTH", "NOISE", "PARTY", "OCCUR", "SCORE", "WORSE", "UNION", "DRAMA", "DELAY", "SOLVE", "GATE",
-    "FORTH", "SCOPE", "AUDIO", "STORE", "PANEL", "LOWER", "PLAIN", "QUEEN", "BODY", "BLAZE", "BEING", "MAYOR",
-    "BASIC", "WILD", "SIZED", "PUSH", "WERE", "FINAL", "ALIGN", "STUFF", "HOOD", "PROUD", "PATH", "EXACT",
-    "TRUCK", "BRING", "JOINT", "POWER", "SPED", "THINK", "EXTRA", "DRESS", "STEP", "EVERY", "FLAME", "LEARN",
-    "JAPAN", "WOMEN", "BROWN", "WHOLE", "MEANT", "FLOOR", "AWARE", "EAGER", "DYING", "BLIND", "BLESS", "CROWD",
-    "FROST", "LEGAL", "IDEAL", "TENT", "NEVER", "JUNE", "SMILE", "SHOW", "VIRUS", "WALTZ", "FRUIT", "GREEN",
-    "BIRTH", "MINOR", "THREW", "GRAY", "BLOOM", "THICK", "SOIL", "LEMON", "CRACK", "GLASS", "SHIFT", "PRESS",
-    "METAL", "GREY", "RIDE", "SHOWN", "CLOUD", "RIVER", "BROKE", "SCALE", "SUITE", "DARK", "LASER", "LAYER",
-    "TRUTH", "BOOK", "HORSE", "LOAD", "GOING", "PAGE", "APPLE", "YOUNG", "PILOT", "CARD", "STYLE", "ARGUE",
-    "BASES", "MARIA", "GUIDE", "THROW", "SUGAR", "VITAL", "TREAT", "FATE", "CRUDE", "SPACE", "RAPID", "MANY",
-    "CALIF", "LATER", "ROOT", "FRAUD", "BLAST", "STATE", "SEVEN", "REPLY", "CLIMB", "HYDRA", "FOUR", "MONEY",
-    "FIFTY", "RELAX", "NOBLE", "BILLY", "UNDUE", "SHIRT", "GRAIN", "THEN", "COPY", "CALM", "WOULD", "GENE",
-    "ORBIT", "HALL", "AHEAD", "ERROR", "WOUND", "VOCAL", "VOID", "MONTH", "UNITY", "RADIO", "JAIL", "NURSE",
-    "GIVE", "THEM", "DREAM", "FADE", "QUIET", "CHINA", "COURT", "STICK", "SWIFT", "VETO", "GRAVE", "CHIEF",
-    "SINK", "ABLE", "PHASE", "QUITE", "KENT", "PRIOR", "TRACK", "JACK", "RAISE", "CAMP", "RIVER", "PAPER",
-    "INDEX", "STAKE", "HENCE", "WROTE", "WHALE", "ACTOR", "PLANT", "CABLE", "ORDER", "WIRE", "COULD", "PAINT",
-    "RIVAL", "LORE", "SHALL", "GRIM", "CLAIM", "SPACE", "TODAY", "RURAL", "FORCE", "ABOUT", "RANK", "WRITE",
-    "PAINT", "VILLA", "GUARD", "TIGER", "MINUS", "STAND", "FLASH", "PRICE", "PRIME", "MERCY", "ACUTE", "TRICK",
-    "TOTAL", "WRITE", "THIS", "PLANE", "WHAT", "WILL", "MARK", "FAITH", "NOVA", "USUAL", "ANGLE", "PETER"
+    "FORTH", "SCOPE", "AUDIO", "STORE", "PANEL", "LOWER", "PLAIN", "QUEEN", "BODY", "BLAZE", "BEING",
+    "MAYOR", "BASIC", "WILD", "SIZED", "PUSH", "WERE", "FINAL", "ALIGN", "STUFF", "HOOD", "PROUD", "PATH",
+    "EXACT", "TRUCK", "BRING", "JOINT", "POWER", "SPED", "THINK", "EXTRA", "DRESS", "STEP", "EVERY", "FLAME",
+    "LEARN", "JAPAN", "WOMEN", "BROWN", "WHOLE", "MEANT", "FLOOR", "AWARE", "EAGER", "DYING", "BLIND", "BLESS",
+    "CROWD", "FROST", "LEGAL", "IDEAL", "TENT", "NEVER", "JUNE", "SMILE", "SHOW", "VIRUS", "WALTZ", "FRUIT",
+    "GREEN", "BIRTH", "MINOR", "THREW", "GRAY", "BLOOM", "THICK", "SOIL", "LEMON", "CRACK", "GLASS", "SHIFT",
+    "PRESS", "METAL", "GREY", "RIDE", "SHOWN", "CLOUD", "RIVER", "BROKE", "SCALE", "SUITE", "DARK", "LASER",
+    "LAYER", "TRUTH", "BOOK", "HORSE", "LOAD", "GOING", "PAGE", "APPLE", "YOUNG", "PILOT", "CARD", "STYLE",
+    "ARGUE", "BASES", "MARIA", "GUIDE", "THROW", "SUGAR", "VITAL", "TREAT", "FATE", "CRUDE", "SPACE", "RAPID",
+    "MANY", "CALIF", "LATER", "ROOT", "FRAUD", "BLAST", "STATE", "SEVEN", "REPLY", "CLIMB", "HYDRA", "FOUR",
+    "MONEY", "FIFTY", "RELAX", "NOBLE", "BILLY", "UNDUE", "SHIRT", "GRAIN", "THEN", "COPY", "CALM", "WOULD",
+    "GENE", "ORBIT", "HALL", "AHEAD", "ERROR", "WOUND", "VOCAL", "VOID", "MONTH", "UNITY", "RADIO", "JAIL",
+    "NURSE", "GIVE", "THEM", "DREAM", "FADE", "QUIET", "CHINA", "COURT", "STICK", "SWIFT", "VETO", "GRAVE",
+    "CHIEF", "SINK", "ABLE", "PHASE", "QUITE", "KENT", "PRIOR", "TRACK", "JACK", "RAISE", "CAMP", "RIVER",
+    "PAPER", "INDEX", "STAKE", "HENCE", "WROTE", "WHALE", "ACTOR", "PLANT", "CABLE", "ORDER", "WIRE", "COULD",
+    "PAINT", "RIVAL", "LORE", "SHALL", "GRIM", "CLAIM", "SPACE", "TODAY", "RURAL", "FORCE", "ABOUT", "RANK",
+    "WRITE", "PAINT", "VILLA", "GUARD", "MINUS", "TIGER", "STAND", "FLASH", "PRICE", "PRIME", "MERCY", "ACUTE",
+    "TRICK", "TOTAL", "WRITE", "THIS", "PLANE", "WHAT", "WILL", "MARK", "FAITH", "NOVA", "USUAL", "ANGLE",
+    "PETER"
 ];
 
 // Word metadata and analysis utilities
@@ -130,8 +132,10 @@ export function calculateWordSimilarity(word1: string, word2: string): number {
 }
 
 // Get word for a specific date (deterministic)
-export function getWordForDate(date: Date): string {
-    const startDate = new Date('2024-01-01');
+// Expects dateStr in YYYY-MM-DD format
+export function getWordForDate(dateStr: string): string {
+    const date = new Date(`${dateStr}T00:00:00Z`);
+    const startDate = new Date('2025-11-28T00:00:00Z');
     const diffTime = Math.abs(date.getTime() - startDate.getTime());
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     const index = diffDays % WORD_LIST.length;

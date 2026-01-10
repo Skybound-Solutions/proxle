@@ -12,10 +12,20 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const admin = require("firebase-admin");
 // Initialize Firebase Admin
-const serviceAccount = require('../../service-account-key.json');
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-});
+try {
+    const serviceAccount = require('../../service-account-key.json');
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: 'proxle-game'
+    });
+    console.log("Credential source: service-account-key.json");
+}
+catch (e) {
+    console.log("Credential source: Application Default Credentials (ADC)");
+    admin.initializeApp({
+        projectId: 'proxle-game'
+    });
+}
 const db = admin.firestore();
 async function migrateLeaderboardSettings() {
     var _a, _b, _c, _d, _e;

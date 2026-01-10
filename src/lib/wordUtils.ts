@@ -1,15 +1,11 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.WORD_LIST = void 0;
-exports.getWordMetadata = getWordMetadata;
-exports.calculateWordSimilarity = calculateWordSimilarity;
-exports.getWordForDate = getWordForDate;
-exports.validateWordList = validateWordList;
-// Same word list as client
+// Client-side word utilities for immediate feedback
+// Mirrors server-side logic from functions/src/wordList.ts
+
+// Same word list as server - used to calculate today's word
 // Balanced word list: 50% 5-letter, 30% 4-letter, 20% 3-letter
 // Total: 756 words (378 5-letter, 227 4-letter, 151 3-letter)
 // Optimized for variety using seeded shuffle (seed: 42069)
-exports.WORD_LIST = [
+export const WORD_LIST = [
     "PIECE", "SHAPE", "AGREE", "NOVEL", "DEALT", "NEWLY", "PEACE", "ENTRY", "QUEST", "TRIED", "ADMIT", "MORAL",
     "STAFF", "FLUID", "TOPIC", "BRASS", "GIANT", "RATIO", "WHICH", "EARTH", "CHART", "DRILL", "CLICK", "HENRY",
     "PETAL", "LABEL", "BLANK", "VENUS", "ROUND", "GROSS", "PINE", "VIDEO", "SHOCK", "LIGHT", "STORM", "DAILY",
@@ -75,94 +71,55 @@ exports.WORD_LIST = [
     "TRICK", "TOTAL", "WRITE", "THIS", "PLANE", "WHAT", "WILL", "MARK", "FAITH", "NOVA", "USUAL", "ANGLE",
     "PETER"
 ];
-// Calculate metadata for a word
-function getWordMetadata(word) {
-    const vowels = new Set(['A', 'E', 'I', 'O', 'U']);
-    const letterFreq = new Map();
-    let vowelCount = 0;
-    let consonantCount = 0;
-    for (const letter of word) {
-        letterFreq.set(letter, (letterFreq.get(letter) || 0) + 1);
-        if (vowels.has(letter)) {
-            vowelCount++;
-        }
-        else {
-            consonantCount++;
-        }
-    }
-    return {
-        length: word.length,
-        vowelCount,
-        consonantCount,
-        uniqueLetters: letterFreq.size,
-        letterFrequency: letterFreq
-    };
-}
-// Calculate similarity between two words (0-1, higher = more similar)
-function calculateWordSimilarity(word1, word2) {
-    // Length difference penalty
-    const lengthDiff = Math.abs(word1.length - word2.length);
-    const lengthPenalty = lengthDiff * 0.2;
-    // Calculate shared letters
-    const letters1 = word1.split('');
-    const letters2 = [...word2.split('')]; // Make a copy for splicing
-    let sharedLetters = 0;
-    for (const letter of letters1) {
-        const index = letters2.indexOf(letter);
-        if (index !== -1) {
-            sharedLetters++;
-            letters2.splice(index, 1); // Remove to avoid double counting
-        }
-    }
-    const letterSimilarity = sharedLetters / Math.max(word1.length, word2.length);
-    // Additional penalty for same-length words with high overlap
-    const sameLengthBonus = (lengthDiff === 0) ? 0.2 : 0;
-    return Math.max(0, Math.min(1, letterSimilarity + sameLengthBonus - lengthPenalty));
-}
-// Get word for a specific date (deterministic)
-// Expects dateStr in YYYY-MM-DD format
-function getWordForDate(dateStr) {
+
+export type LetterStatus = 'correct' | 'present' | 'absent' | 'empty';
+
+/**
+ * Get the word for a specific date (mirrors server logic)
+ * This ensures client and server always agree on today's word
+ * Expects dateStr in YYYY-MM-DD format
+ */
+export function getWordForDate(dateStr: string): string {
     const date = new Date(`${dateStr}T00:00:00Z`);
     const startDate = new Date('2025-11-28T00:00:00Z');
     const diffTime = Math.abs(date.getTime() - startDate.getTime());
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    const index = diffDays % exports.WORD_LIST.length;
-    return exports.WORD_LIST[index];
+    const index = diffDays % WORD_LIST.length;
+    return WORD_LIST[index];
 }
-// Validate word list for problematic clusters (for testing/validation)
-function validateWordList() {
-    const issues = [];
-    let totalSimilarity = 0;
-    let maxSimilarity = 0;
-    let problematicPairs = 0;
-    const SIMILARITY_THRESHOLD = 0.65;
-    const lengthDistribution = {};
-    // Calculate length distribution
-    exports.WORD_LIST.forEach(word => {
-        lengthDistribution[word.length] = (lengthDistribution[word.length] || 0) + 1;
-    });
-    for (let i = 0; i < exports.WORD_LIST.length - 1; i++) {
-        const similarity = calculateWordSimilarity(exports.WORD_LIST[i], exports.WORD_LIST[i + 1]);
-        totalSimilarity += similarity;
-        maxSimilarity = Math.max(maxSimilarity, similarity);
-        if (similarity > SIMILARITY_THRESHOLD) {
-            problematicPairs++;
-            issues.push(`Words at index ${i}-${i + 1} are too similar: ` +
-                `"${exports.WORD_LIST[i]}" -> "${exports.WORD_LIST[i + 1]}" ` +
-                `(similarity: ${similarity.toFixed(2)})`);
+
+/**
+ * Calculate letter status for a guess against a target word
+ * Mirrors the server-side logic in functions/src/index.ts
+ */
+export function calculateLetterStatus(guess: string, target: string): LetterStatus[] {
+    const input = guess.toUpperCase();
+    const targetWord = target.toUpperCase();
+
+    const letterStatus: LetterStatus[] = Array(input.length).fill('absent');
+    const targetArr = targetWord.split('');
+    const inputArr = input.split('');
+
+    // First pass: Find greens (correct position)
+    for (let i = 0; i < Math.min(inputArr.length, targetArr.length); i++) {
+        const char = inputArr[i];
+        if (char === targetArr[i]) {
+            letterStatus[i] = 'correct';
+            targetArr[i] = '#'; // Mark as used
         }
     }
-    const avgSimilarity = totalSimilarity / (exports.WORD_LIST.length - 1);
-    return {
-        valid: problematicPairs === 0,
-        issues: issues.slice(0, 10), // Only return first 10 issues
-        stats: {
-            totalWords: exports.WORD_LIST.length,
-            avgSimilarity,
-            maxConsecutiveSimilarity: maxSimilarity,
-            problematicPairs,
-            lengthDistribution
+
+    // Second pass: Find yellows (present but wrong spot)
+    for (let i = 0; i < inputArr.length; i++) {
+        const char = inputArr[i];
+        if (letterStatus[i] !== 'correct') {
+            const targetIndex = targetArr.indexOf(char);
+            if (targetIndex !== -1) {
+                letterStatus[i] = 'present';
+                targetArr[targetIndex] = '#'; // Mark as used
+            }
         }
-    };
+    }
+
+    return letterStatus;
 }
-//# sourceMappingURL=wordList.js.map

@@ -20,16 +20,14 @@ console.log('2. RECENT WORDS (Last 7 days):');
 const today = new Date('2025-12-31');
 for (let i = 6; i >= 0; i--) {
     const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const word = (0, wordList_1.getWordForDate)(date);
+    const word = (0, wordList_1.getWordForDate)(date.toLocaleDateString('en-CA'));
     console.log(`   ${date.toISOString().split('T')[0]}: ${word}`);
 }
 // Test 3: Check next 14 days
 console.log('\n3. UPCOMING WORDS (Next 14 days):');
 for (let i = 0; i < 14; i++) {
     const date = new Date(today);
-    date.setDate(date.getDate() + i);
-    const word = (0, wordList_1.getWordForDate)(date);
+    const word = (0, wordList_1.getWordForDate)(date.toLocaleDateString('en-CA'));
     console.log(`   ${date.toISOString().split('T')[0]}: ${word}`);
 }
 // Test 4: Analyze similarity of recent consecutive words
@@ -38,7 +36,7 @@ const recentWords = [];
 for (let i = 6; i >= 0; i--) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
-    recentWords.push((0, wordList_1.getWordForDate)(date));
+    recentWords.push((0, wordList_1.getWordForDate)(date.toLocaleDateString('en-CA')));
 }
 for (let i = 0; i < recentWords.length - 1; i++) {
     const word1 = recentWords[i];
@@ -58,12 +56,11 @@ for (let i = 0; i < oldSeq.length - 1; i++) {
 console.log('\n   New sequence (upcoming 3 days):');
 for (let i = 0; i < 3; i++) {
     const date = new Date(today);
-    date.setDate(date.getDate() + i);
-    const word = (0, wordList_1.getWordForDate)(date);
+    const word = (0, wordList_1.getWordForDate)(date.toLocaleDateString('en-CA'));
     if (i > 0) {
         const prevDate = new Date(today);
         prevDate.setDate(prevDate.getDate() + i - 1);
-        const prevWord = (0, wordList_1.getWordForDate)(prevDate);
+        const prevWord = (0, wordList_1.getWordForDate)(prevDate.toLocaleDateString('en-CA'));
         const similarity = (0, wordList_1.calculateWordSimilarity)(prevWord, word);
         console.log(`     ${prevWord} → ${word}: ${similarity.toFixed(3)}`);
     }

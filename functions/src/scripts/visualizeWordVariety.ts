@@ -25,7 +25,7 @@ let highSimilarityCount = 0;
 for (let i = 0; i < days; i++) {
     const date = new Date(startDate);
     date.setDate(date.getDate() + i);
-    const word = getWordForDate(date);
+    const word = getWordForDate(date.toLocaleDateString('en-CA'));
     const dateStr = date.toISOString().split('T')[0];
 
     let similarity = 0;

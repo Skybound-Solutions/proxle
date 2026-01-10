@@ -36,7 +36,6 @@ export function calculateNewStats(
     guessCount: number
 ): UserStats {
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Midnight today
 
     // Clone stats to avoid mutation
     const newStats = { ...currentStats };
@@ -59,10 +58,18 @@ export function calculateNewStats(
             newStats.currentStreak = 1;
         } else {
             const lastPlayed = newStats.lastPlayedDate.toDate();
-            const lastPlayedDay = new Date(lastPlayed.getFullYear(), lastPlayed.getMonth(), lastPlayed.getDate());
 
+            // BUG FIX #1: Normalize dates to UTC midnight to avoid timezone issues
+            const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+            const lastPlayedDay = new Date(Date.UTC(
+                lastPlayed.getUTCFullYear(),
+                lastPlayed.getUTCMonth(),
+                lastPlayed.getUTCDate()
+            ));
+
+            // Use Math.floor instead of Math.ceil to avoid off-by-one errors
             const diffTime = Math.abs(today.getTime() - lastPlayedDay.getTime());
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
             if (diffDays === 1) {
                 // Consecutive day! Increment streak
